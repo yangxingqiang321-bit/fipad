@@ -48,10 +48,6 @@
 			<string>0.20</string>
 			<key>max</key>
 			<string>0.50</string>
-			<key>stepValue</key>
-			<real>0.01</real>
-			<key>hasStepper</key>
-			<true/>
 			<key>showValue</key>
 			<true/>
 			<key>defaults</key>
@@ -76,10 +72,6 @@
 			<string>10</string>
 			<key>max</key>
 			<string>120</string>
-			<key>stepValue</key>
-			<real>1</real>
-			<key>hasStepper</key>
-			<true/>
 			<key>showValue</key>
 			<true/>
 			<key>defaults</key>
@@ -104,10 +96,6 @@
 			<string>10</string>
 			<key>max</key>
 			<string>120</string>
-			<key>stepValue</key>
-			<real>1</real>
-			<key>hasStepper</key>
-			<true/>
 			<key>showValue</key>
 			<true/>
 			<key>defaults</key>
@@ -140,10 +128,6 @@
 			<string>0.20</string>
 			<key>max</key>
 			<string>0.50</string>
-			<key>stepValue</key>
-			<real>0.01</real>
-			<key>hasStepper</key>
-			<true/>
 			<key>showValue</key>
 			<true/>
 			<key>defaults</key>
@@ -168,10 +152,6 @@
 			<string>10</string>
 			<key>max</key>
 			<string>120</string>
-			<key>stepValue</key>
-			<real>1</real>
-			<key>hasStepper</key>
-			<true/>
 			<key>showValue</key>
 			<true/>
 			<key>defaults</key>
@@ -196,10 +176,6 @@
 			<string>10</string>
 			<key>max</key>
 			<string>120</string>
-			<key>stepValue</key>
-			<real>1</real>
-			<key>hasStepper</key>
-			<true/>
 			<key>showValue</key>
 			<true/>
 			<key>defaults</key>
@@ -232,10 +208,6 @@
 			<string>0</string>
 			<key>max</key>
 			<string>40</string>
-			<key>stepValue</key>
-			<real>1</real>
-			<key>hasStepper</key>
-			<true/>
 			<key>showValue</key>
 			<true/>
 			<key>defaults</key>
