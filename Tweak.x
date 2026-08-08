@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <dlfcn.h>
 
 NSString *const domainString = @"com.schlub51.fipad";
 NSString *const killSwitchPath = @"/var/mobile/fipad.disable";
@@ -79,6 +80,15 @@ void ReloadPrefs(void) {
     horizSpacingLand = NormalizedSpacingPref(prefs, @"horizSpacingLand", 50.0, 11.6);
 }
 
+// ===== TrollPad 核心：MGGetBoolAnswer Hook =====
+BOOL MGGetBoolAnswer(NSString* property);
+%hookf(BOOL, MGGetBoolAnswer, NSString* property) {
+    if ([property isEqualToString:@"DeviceSupportsEnhancedMultitasking"]) {
+        return YES;
+    }
+    return %orig;
+}
+
 // ===== 临时伪装 iPad（仅在切换器加载期间）=====
 %hook UIDevice
 - (UIUserInterfaceIdiom)userInterfaceIdiom {
@@ -125,7 +135,41 @@ void ReloadPrefs(void) {
 }
 %end
 
-// ===== 强制 iPad 网格样式 + 自定义缩放/间距/圆角 =====
+// ===== 额外：确保 iPad 多任务能力 =====
+%hook SBApplication
+- (BOOL)isMedusaCapable {
+    if(TweakActive()) {
+        return YES;
+    }
+    return %orig;
+}
+- (BOOL)_supportsApplicationType:(int)arg1 {
+    if(TweakActive()) {
+        return YES;
+    }
+    return %orig;
+}
+%end
+
+%hook SBPlatformController
+- (NSInteger)medusaCapabilities {
+    if(TweakActive()) {
+        return 2;
+    }
+    return %orig;
+}
+%end
+
+%hook SBMainWorkspace
+- (BOOL)isMedusaEnabled {
+    if(TweakActive()) {
+        return YES;
+    }
+    return %orig;
+}
+%end
+
+// ===== 强制 iPad 网格样式 =====
 %hook SBAppSwitcherSettings
 - (NSInteger)effectiveSwitcherStyle {
     if(TweakActive()) {
@@ -202,16 +246,6 @@ void ReloadPrefs(void) {
 - (double)_cardCornerRadiusInSwitcher {
     if(TweakActive()) {
         return cornerRadius;
-    }
-    return %orig;
-}
-%end
-
-// ===== 确保 iPad 多任务能力（仅用于网格）=====
-%hook SBPlatformController
-- (NSInteger)medusaCapabilities {
-    if(TweakActive()) {
-        return 2; // 启用多任务
     }
     return %orig;
 }
