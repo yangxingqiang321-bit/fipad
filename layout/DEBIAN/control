@@ -2,7 +2,7 @@ Package: com.schlub51.fipad
 Name: fipad
 Version: 1.0.0
 Architecture: iphoneos-arm64
-Description: fipad - iPad-style grid switcher for iPhone on iOS 16.
+Description: 仿ipad可调节后台！
 Maintainer: schlub51
 Author: schlub51
 Section: Tweaks
