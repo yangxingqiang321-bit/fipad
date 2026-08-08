@@ -44,9 +44,13 @@ jobs:
       - name: Build package
         run: make package
 
+      - name: Rename .deb to fipad.deb
+        run: |
+          cp packages/*.deb fipad.deb
+
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fipad.deb
-          path: packages/*.deb
+          name: fipad
+          path: fipad.deb
           if-no-files-found: error
