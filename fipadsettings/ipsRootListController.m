@@ -2,6 +2,8 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <rootless.h>
+#import <objc/runtime.h>
+#import "NSTask.h"
 
 NSString *const domainString = @"com.schlub51.fipad";
 
@@ -78,7 +80,6 @@ NSString *const domainString = @"com.schlub51.fipad";
                              atY:(CGFloat)y
                           toView:(UIView *)view
                            width:(CGFloat)width {
-    // 标签
     UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(20, y, 80, 30)];
     label.text = labelText;
     label.font = [UIFont systemFontOfSize:14];
@@ -88,9 +89,8 @@ NSString *const domainString = @"com.schlub51.fipad";
     CGFloat currentValue = [defaults floatForKey:key];
     if (currentValue == 0) currentValue = (min + max) / 2;
     
-    // 滑块（宽度自适应）
     CGFloat sliderX = 100;
-    CGFloat sliderWidth = width - sliderX - 80 - 20 - 10; // 留出步进器空间
+    CGFloat sliderWidth = width - sliderX - 80 - 20 - 10;
     UISlider *slider = [[UISlider alloc] initWithFrame:CGRectMake(sliderX, y, sliderWidth, 30)];
     slider.minimumValue = min;
     slider.maximumValue = max;
@@ -99,7 +99,6 @@ NSString *const domainString = @"com.schlub51.fipad";
     [slider addTarget:self action:@selector(sliderChanged:) forControlEvents:UIControlEventValueChanged];
     [view addSubview:slider];
     
-    // 数值显示
     CGFloat valueX = sliderX + sliderWidth + 10;
     UILabel *valueLabel = [[UILabel alloc] initWithFrame:CGRectMake(valueX, y, 40, 30)];
     valueLabel.text = [NSString stringWithFormat:@"%.2f", currentValue];
@@ -108,7 +107,6 @@ NSString *const domainString = @"com.schlub51.fipad";
     valueLabel.accessibilityLabel = [key stringByAppendingString:@"_value"];
     [view addSubview:valueLabel];
     
-    // 步进器
     CGFloat stepperX = valueX + 45;
     UIStepper *stepper = [[UIStepper alloc] initWithFrame:CGRectMake(stepperX, y, 80, 30)];
     stepper.minimumValue = min;
@@ -119,7 +117,6 @@ NSString *const domainString = @"com.schlub51.fipad";
     [stepper addTarget:self action:@selector(stepperChanged:) forControlEvents:UIControlEventValueChanged];
     [view addSubview:stepper];
     
-    // 存储关联对象以便更新数值标签
     objc_setAssociatedObject(slider, "valueLabel", valueLabel, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     objc_setAssociatedObject(stepper, "valueLabel", valueLabel, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     
@@ -159,7 +156,9 @@ NSString *const domainString = @"com.schlub51.fipad";
     UIAlertAction* defaultAction = [UIAlertAction actionWithTitle:@"否" style:UIAlertActionStyleCancel handler:nil];
     UIAlertAction* yes = [UIAlertAction actionWithTitle:@"是" style:UIAlertActionStyleDestructive
         handler:^(UIAlertAction * action) {
-            system("sbreload");
+            NSTask *task = [[NSTask alloc] init];
+            [task setLaunchPath:ROOT_PATH_NS(@"/usr/bin/sbreload")];
+            [task launch];
         }];
     [alert addAction:defaultAction];
     [alert addAction:yes];
