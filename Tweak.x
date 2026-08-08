@@ -32,15 +32,14 @@ static double SettingsScaledAppExposeValue(double native) {
     }
     double scale = cardScale / 0.30;
     if(IsLandscape()) {
-        scale *= 0.55;   // 缩小卡片，即使旋转也不至于太夸张
+        scale *= 0.55;   // 横屏时卡片大幅缩小
     }
     return native * scale;
 }
 
 static double SpacingMultiplier(BOOL vertical) {
-    double value = 0.0;
-    // 横竖屏都用竖屏的间距值，保证一致
-    value = vertical ? vertSpacingPort : horizSpacingPort;
+    // 横竖屏都用竖屏的设置值，保证横竖屏间距一致
+    double value = vertical ? vertSpacingPort : horizSpacingPort;
     if(value <= 0.0) {
         return 1.0;
     }
@@ -111,18 +110,20 @@ void ReloadPrefs(void) {
 }
 
 - (double)gridSwitcherHorizontalInterpageSpacingLandscape {
+    double value = %orig;
     if(TweakActive()) {
-        // 直接返回竖屏值
-        return [self gridSwitcherHorizontalInterpageSpacingPortrait];
+        // 使用竖屏的倍数，保证横竖屏间距一致
+        value *= SpacingMultiplier(NO);
     }
-    return %orig;
+    return value;
 }
 
 - (double)gridSwitcherVerticalNaturalSpacingLandscape {
+    double value = %orig;
     if(TweakActive()) {
-        return [self gridSwitcherVerticalNaturalSpacingPortrait];
+        value *= SpacingMultiplier(YES);
     }
-    return %orig;
+    return value;
 }
 
 - (double)spacingBetweenLeadingEdgeAndIcon {
@@ -131,35 +132,6 @@ void ReloadPrefs(void) {
         return MIN(value, 8.0);
     }
     return value;
-}
-
-// 尝试多个可能的旋转控制方法
-- (BOOL)shouldRotateSnapshotsInSwitcher {
-    if(TweakActive() && IsLandscape()) {
-        return NO;
-    }
-    return %orig;
-}
-
-- (BOOL)shouldAutorotateSnapshots {
-    if(TweakActive() && IsLandscape()) {
-        return NO;
-    }
-    return %orig;
-}
-
-- (BOOL)allowsSnapshotsRotation {
-    if(TweakActive() && IsLandscape()) {
-        return NO;
-    }
-    return %orig;
-}
-
-- (BOOL)rotateSnapshots {
-    if(TweakActive() && IsLandscape()) {
-        return NO;
-    }
-    return %orig;
 }
 
 %end
@@ -171,22 +143,6 @@ void ReloadPrefs(void) {
         return cornerRadius;
     }
     return %orig;
-}
-
-// 在布局完成后，尝试重置快照变换
-- (void)layoutSubviews {
-    %orig;
-    if(TweakActive() && IsLandscape()) {
-        // 遍历子视图，找到快照视图并重置变换
-        for (UIView *subview in self.subviews) {
-            if ([subview isKindOfClass:NSClassFromString(@"SBAppSwitcherSnapshotView")] ||
-                [subview isKindOfClass:NSClassFromString(@"SBSwitcherSnapshotView")]) {
-                if (!CGAffineTransformIsIdentity(subview.transform)) {
-                    subview.transform = CGAffineTransformIdentity;
-                }
-            }
-        }
-    }
 }
 
 %end
@@ -209,42 +165,6 @@ void ReloadPrefs(void) {
         return YES;
     }
     return %orig;
-}
-
-// 强制切换器在横屏时也不旋转
-- (BOOL)shouldAutorotate {
-    if(TweakActive() && IsLandscape()) {
-        return NO;
-    }
-    return %orig;
-}
-
-- (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation {
-    if(TweakActive() && IsLandscape()) {
-        return UIInterfaceOrientationPortrait;
-    }
-    return %orig;
-}
-
-// 在视图出现时重置所有快照变换
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    if(TweakActive() && IsLandscape()) {
-        [self resetSnapshotTransformsInView:self.view];
-    }
-}
-
-- (void)resetSnapshotTransformsInView:(UIView *)view {
-    for (UIView *subview in view.subviews) {
-        if ([subview isKindOfClass:NSClassFromString(@"SBAppSwitcherSnapshotView")] ||
-            [subview isKindOfClass:NSClassFromString(@"SBSwitcherSnapshotView")] ||
-            [subview isKindOfClass:NSClassFromString(@"SBAppSwitcherPageView")]) {
-            if (!CGAffineTransformIsIdentity(subview.transform)) {
-                subview.transform = CGAffineTransformIdentity;
-            }
-        }
-        [self resetSnapshotTransformsInView:subview];
-    }
 }
 
 %end
