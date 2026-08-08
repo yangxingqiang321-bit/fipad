@@ -6,146 +6,142 @@ NSString *const killSwitchPath = @"/var/mobile/fipad.disable";
 
 static BOOL isEnabled;
 static BOOL spoofPadIdiomDuringSwitcherLoad;
-static double cardScale;          // 卡片缩放比例，直接存储最终缩放值（0.30~0.50）
+static double cardScale;
 static double cornerRadius;
 static double vertSpacingPort;
 static double horizSpacingPort;
 static double vertSpacingLand;
 static double horizSpacingLand;
 
+// 先声明 IsLandscape，供后续函数使用
+static BOOL IsLandscape(void) {
+    CGSize size = [UIScreen mainScreen].bounds.size;
+    return size.width > size.height;
+}
+
 static BOOL KillSwitchActive(void) {
-	return [[NSFileManager defaultManager] fileExistsAtPath:killSwitchPath];
+    return [[NSFileManager defaultManager] fileExistsAtPath:killSwitchPath];
 }
 
 static BOOL TweakActive(void) {
-	return isEnabled && !KillSwitchActive();
+    return isEnabled && !KillSwitchActive();
 }
 
 static double SettingsScaledAppExposeValue(double native) {
-	if(!TweakActive()) {
-		return native;
-	}
-	double scale = cardScale / 0.30;
-	// 横屏时额外缩小 25%，让卡片能放下两列
-	if(IsLandscape()) {
-		scale *= 0.75;   // 可根据效果调整（0.70 ~ 0.85）
-	}
-	return native * scale;
+    if(!TweakActive()) {
+        return native;
+    }
+    double scale = cardScale / 0.30;
+    // 横屏时额外缩小 25%，让卡片能放下两列
+    if(IsLandscape()) {
+        scale *= 0.75;
+    }
+    return native * scale;
 }
 
-static BOOL IsLandscape(void) {
-	CGSize size = [UIScreen mainScreen].bounds.size;
-	return size.width > size.height;
-}
-
+// 间距倍数：横屏时也使用竖屏的设置值，保证横屏间距与竖屏一致
 static double SpacingMultiplier(BOOL vertical) {
-	double value = 0.0;
-	if(IsLandscape()) {
-		value = vertical ? vertSpacingLand : horizSpacingLand;
-	}
-	else {
-		value = vertical ? vertSpacingPort : horizSpacingPort;
-	}
-	if(value <= 0.0) {
-		return 1.0;
-	}
-	return value / 50.0;
+    double value = vertical ? vertSpacingPort : horizSpacingPort; // 始终使用竖屏值
+    if(value <= 0.0) {
+        return 1.0;
+    }
+    return value / 50.0;
 }
 
-// Ignore the legacy slider defaults so old saved values map to "no change".
 static double NormalizedSpacingPref(NSUserDefaults *prefs, NSString *key, double fallback, double legacyDefault) {
-	id object = [prefs objectForKey:key];
-	if(!object) {
-		return fallback;
-	}
-	double value = [object doubleValue];
-	if(fabs(value - legacyDefault) < 0.01) {
-		return fallback;
-	}
-	return value;
+    id object = [prefs objectForKey:key];
+    if(!object) {
+        return fallback;
+    }
+    double value = [object doubleValue];
+    if(fabs(value - legacyDefault) < 0.01) {
+        return fallback;
+    }
+    return value;
 }
 
 void ReloadPrefs(void) {
-	NSUserDefaults *prefs = [[NSUserDefaults alloc] initWithSuiteName:domainString];
-	isEnabled = [([prefs objectForKey:@"isEnabled"] ?: @(YES)) boolValue];
-	cardScale = [([prefs objectForKey:@"cardScale"] ?: @(0.38)) doubleValue];
-	cornerRadius = [([prefs objectForKey:@"cornerRadius"] ?: @(10)) doubleValue];
-	vertSpacingPort = NormalizedSpacingPref(prefs, @"vertSpacingPort", 50.0, 42.0);
-	horizSpacingPort = NormalizedSpacingPref(prefs, @"horizSpacingPort", 50.0, 25.5);
-	vertSpacingLand = NormalizedSpacingPref(prefs, @"vertSpacingLand", 50.0, 38.0);
-	horizSpacingLand = NormalizedSpacingPref(prefs, @"horizSpacingLand", 50.0, 11.6);
+    NSUserDefaults *prefs = [[NSUserDefaults alloc] initWithSuiteName:domainString];
+    isEnabled = [([prefs objectForKey:@"isEnabled"] ?: @(YES)) boolValue];
+    cardScale = [([prefs objectForKey:@"cardScale"] ?: @(0.38)) doubleValue];
+    cornerRadius = [([prefs objectForKey:@"cornerRadius"] ?: @(10)) doubleValue];
+    vertSpacingPort = NormalizedSpacingPref(prefs, @"vertSpacingPort", 50.0, 42.0);
+    horizSpacingPort = NormalizedSpacingPref(prefs, @"horizSpacingPort", 50.0, 25.5);
+    vertSpacingLand = NormalizedSpacingPref(prefs, @"vertSpacingLand", 50.0, 38.0);
+    horizSpacingLand = NormalizedSpacingPref(prefs, @"horizSpacingLand", 50.0, 11.6);
 }
 
 %hook SBAppSwitcherSettings
 
 - (long long)switcherStyle {
-	if(TweakActive()) {
-		return 2;
-	}
-	return %orig;
+    if(TweakActive()) {
+        return 2;
+    }
+    return %orig;
 }
 
 - (double)appExposeNonFloatingSingleRowScale {
-	double orig = %orig;
-	return SettingsScaledAppExposeValue(orig);
+    double orig = %orig;
+    return SettingsScaledAppExposeValue(orig);
 }
 
 - (double)appExposeNonFloatingDoubleRowScale {
-	double orig = %orig;
-	return SettingsScaledAppExposeValue(orig);
+    double orig = %orig;
+    return SettingsScaledAppExposeValue(orig);
 }
 
 - (double)appExposeFloatingDoubleRowScale {
-	double orig = %orig;
-	return SettingsScaledAppExposeValue(orig);
+    double orig = %orig;
+    return SettingsScaledAppExposeValue(orig);
 }
 
 - (double)gridSwitcherHorizontalInterpageSpacingPortrait {
-	double value = %orig;
-	if(TweakActive()) {
-		value *= SpacingMultiplier(NO);
-	}
-	return value;
+    double value = %orig;
+    if(TweakActive()) {
+        value *= SpacingMultiplier(NO);
+    }
+    return value;
 }
 
 - (double)gridSwitcherVerticalNaturalSpacingPortrait {
-	double value = %orig;
-	if(TweakActive()) {
-		value *= SpacingMultiplier(YES);
-	}
-	return value;
+    double value = %orig;
+    if(TweakActive()) {
+        value *= SpacingMultiplier(YES);
+    }
+    return value;
 }
 
-// 横屏水平间距：直接使用竖屏值，保证布局一致
+// 横屏间距：直接使用竖屏的倍数（SpacingMultiplier 已返回竖屏值）
 - (double)gridSwitcherHorizontalInterpageSpacingLandscape {
-	if(TweakActive()) {
-		return [self gridSwitcherHorizontalInterpageSpacingPortrait];
-	}
-	return %orig;
+    double value = %orig;
+    if(TweakActive()) {
+        value *= SpacingMultiplier(NO); // 这里 SpacingMultiplier 返回竖屏的倍数
+    }
+    return value;
 }
 
-// 横屏垂直间距：直接使用竖屏值，保证布局一致
 - (double)gridSwitcherVerticalNaturalSpacingLandscape {
-	if(TweakActive()) {
-		return [self gridSwitcherVerticalNaturalSpacingPortrait];
-	}
-	return %orig;
+    double value = %orig;
+    if(TweakActive()) {
+        value *= SpacingMultiplier(YES);
+    }
+    return value;
 }
 
 - (double)spacingBetweenLeadingEdgeAndIcon {
-	double value = %orig;
-	if(TweakActive()) {
-		return MIN(value, 8.0);
-	}
-	return value;
+    double value = %orig;
+    if(TweakActive()) {
+        return MIN(value, 8.0);
+    }
+    return value;
 }
 
 // 强制横屏时卡片预览图保持竖屏方向
 - (BOOL)shouldRotateSnapshotsInSwitcher {
-	if(TweakActive() && IsLandscape()) {
-		return NO;  // 横屏时不旋转卡片预览图
-	}
-	return %orig;
+    if(TweakActive() && IsLandscape()) {
+        return NO;
+    }
+    return %orig;
 }
 
 %end
@@ -153,10 +149,10 @@ void ReloadPrefs(void) {
 %hook SBMixedGridSwitcherModifier
 
 - (double)_cardCornerRadiusInSwitcher {
-	if(TweakActive()) {
-		return cornerRadius;
-	}
-	return %orig;
+    if(TweakActive()) {
+        return cornerRadius;
+    }
+    return %orig;
 }
 
 %end
@@ -164,10 +160,10 @@ void ReloadPrefs(void) {
 %hook UIDevice
 
 - (long long)userInterfaceIdiom {
-	if(TweakActive() && spoofPadIdiomDuringSwitcherLoad) {
-		return 1;
-	}
-	return %orig;
+    if(TweakActive() && spoofPadIdiomDuringSwitcherLoad) {
+        return 1;
+    }
+    return %orig;
 }
 
 %end
@@ -175,10 +171,10 @@ void ReloadPrefs(void) {
 %hook SBFluidSwitcherViewController
 
 - (BOOL)isDevicePad {
-	if(TweakActive()) {
-		return YES;
-	}
-	return %orig;
+    if(TweakActive()) {
+        return YES;
+    }
+    return %orig;
 }
 
 %end
@@ -186,27 +182,27 @@ void ReloadPrefs(void) {
 %hook SBMainSwitcherControllerCoordinator
 
 - (void)_loadContentViewControllerIfNecessaryForWindowScene:(id)windowScene {
-	if(!TweakActive()) {
-		%orig(windowScene);
-		return;
-	}
+    if(!TweakActive()) {
+        %orig(windowScene);
+        return;
+    }
 
-	spoofPadIdiomDuringSwitcherLoad = YES;
-	%orig(windowScene);
-	spoofPadIdiomDuringSwitcherLoad = NO;
+    spoofPadIdiomDuringSwitcherLoad = YES;
+    %orig(windowScene);
+    spoofPadIdiomDuringSwitcherLoad = NO;
 }
 
 %end
 
 %ctor {
-	if(KillSwitchActive()) {
-		return;
-	}
-	ReloadPrefs();
-	CFNotificationCenterAddObserver(
-		CFNotificationCenterGetDarwinNotifyCenter(), NULL,
-		(CFNotificationCallback)ReloadPrefs,
-		CFSTR("com.schlub51.fipad.changed"), NULL,
-		CFNotificationSuspensionBehaviorDeliverImmediately);
-	%init;
+    if(KillSwitchActive()) {
+        return;
+    }
+    ReloadPrefs();
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetDarwinNotifyCenter(), NULL,
+        (CFNotificationCallback)ReloadPrefs,
+        CFSTR("com.schlub51.fipad.changed"), NULL,
+        CFNotificationSuspensionBehaviorDeliverImmediately);
+    %init;
 }
