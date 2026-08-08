@@ -7,6 +7,7 @@ NSString *const killSwitchPath = @"/var/mobile/fipad.disable";
 static BOOL isEnabled;
 static BOOL spoofPadIdiomDuringSwitcherLoad;
 static double cardScale;
+static double cardScaleLandscape;  // 横屏卡片缩放
 static double cornerRadius;
 static double vertSpacingPort;
 static double horizSpacingPort;
@@ -30,23 +31,30 @@ static double SettingsScaledAppExposeValue(double native) {
     if(!TweakActive()) {
         return native;
     }
-    double scale = cardScale / 0.30;
-    // 横屏时不再强制缩小，让系统原生处理
+    double scale;
+    if (IsLandscape()) {
+        scale = (cardScaleLandscape > 0) ? cardScaleLandscape / 0.30 : cardScale / 0.30;
+    } else {
+        scale = cardScale / 0.30;
+    }
     return native * scale;
 }
 
+// 间距倍数（横竖屏独立）
 static double SpacingMultiplier(BOOL vertical) {
-    double value = vertical ? vertSpacingPort : horizSpacingPort;
+    double value;
+    if (IsLandscape()) {
+        value = vertical ? vertSpacingLand : horizSpacingLand;
+    } else {
+        value = vertical ? vertSpacingPort : horizSpacingPort;
+    }
     if(value <= 0.0) {
         return 1.0;
     }
     return value / 50.0;
 }
 
-static double NormalizedSpacingPref(NSUserDefaults *prefs,
-                                    NSString *key,
-                                    double fallback,
-                                    double legacyDefault) {
+static double NormalizedSpacingPref(NSUserDefaults *prefs, NSString *key, double fallback, double legacyDefault) {
     id object = [prefs objectForKey:key];
     if(!object) {
         return fallback;
@@ -59,48 +67,21 @@ static double NormalizedSpacingPref(NSUserDefaults *prefs,
 }
 
 void ReloadPrefs(void) {
-    NSUserDefaults *prefs =
-    [[NSUserDefaults alloc] initWithSuiteName:domainString];
-
-    isEnabled =
-    [([prefs objectForKey:@"isEnabled"] ?: @(YES)) boolValue];
-
-    cardScale =
-    [([prefs objectForKey:@"cardScale"] ?: @(0.38)) doubleValue];
-
-    cornerRadius =
-    [([prefs objectForKey:@"cornerRadius"] ?: @(10)) doubleValue];
-
-    vertSpacingPort =
-    NormalizedSpacingPref(prefs,
-                          @"vertSpacingPort",
-                          50.0,
-                          42.0);
-
-    horizSpacingPort =
-    NormalizedSpacingPref(prefs,
-                          @"horizSpacingPort",
-                          50.0,
-                          25.5);
-
-    vertSpacingLand =
-    NormalizedSpacingPref(prefs,
-                          @"vertSpacingLand",
-                          50.0,
-                          38.0);
-
-    horizSpacingLand =
-    NormalizedSpacingPref(prefs,
-                          @"horizSpacingLand",
-                          50.0,
-                          11.6);
+    NSUserDefaults *prefs = [[NSUserDefaults alloc] initWithSuiteName:domainString];
+    isEnabled = [([prefs objectForKey:@"isEnabled"] ?: @(YES)) boolValue];
+    cardScale = [([prefs objectForKey:@"cardScale"] ?: @(0.38)) doubleValue];
+    cardScaleLandscape = [([prefs objectForKey:@"cardScaleLandscape"] ?: @(0.38)) doubleValue];
+    cornerRadius = [([prefs objectForKey:@"cornerRadius"] ?: @(10)) doubleValue];
+    vertSpacingPort = NormalizedSpacingPref(prefs, @"vertSpacingPort", 50.0, 42.0);
+    horizSpacingPort = NormalizedSpacingPref(prefs, @"horizSpacingPort", 50.0, 25.5);
+    vertSpacingLand = NormalizedSpacingPref(prefs, @"vertSpacingLand", 50.0, 38.0);
+    horizSpacingLand = NormalizedSpacingPref(prefs, @"horizSpacingLand", 50.0, 11.6);
 }
 
 %hook SBAppSwitcherSettings
 
 - (long long)switcherStyle {
-    // 竖屏启用网格，横屏回到原生
-    if(TweakActive() && !IsLandscape()) {
+    if(TweakActive()) {
         return 2;  // iPad 网格
     }
     return %orig;
@@ -174,12 +155,12 @@ void ReloadPrefs(void) {
 
 %end
 
-// 必要的伪装，仅在竖屏且启用时有效
+// 伪装 iPad（只在加载切换器时）
 %hook UIDevice
 
 - (long long)userInterfaceIdiom {
-    if(TweakActive() && spoofPadIdiomDuringSwitcherLoad && !IsLandscape()) {
-        return 1;  // 伪装为 iPad
+    if(TweakActive() && spoofPadIdiomDuringSwitcherLoad) {
+        return 1;
     }
     return %orig;
 }
@@ -189,7 +170,7 @@ void ReloadPrefs(void) {
 %hook SBFluidSwitcherViewController
 
 - (BOOL)isDevicePad {
-    if(TweakActive() && !IsLandscape()) {
+    if(TweakActive()) {
         return YES;
     }
     return %orig;
@@ -205,14 +186,9 @@ void ReloadPrefs(void) {
         return;
     }
 
-    // 只在竖屏时启用伪装
-    if(!IsLandscape()) {
-        spoofPadIdiomDuringSwitcherLoad = YES;
-        %orig(windowScene);
-        spoofPadIdiomDuringSwitcherLoad = NO;
-    } else {
-        %orig(windowScene);
-    }
+    spoofPadIdiomDuringSwitcherLoad = YES;
+    %orig(windowScene);
+    spoofPadIdiomDuringSwitcherLoad = NO;
 }
 
 %end
