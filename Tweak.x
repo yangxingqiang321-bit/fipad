@@ -1,12 +1,12 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
+#import <dlfcn.h>
 
 NSString *const domainString = @"com.schlub51.fipad";
 NSString *const killSwitchPath = @"/var/mobile/fipad.disable";
 
 static BOOL isEnabled;
-static BOOL spoofPadIdiomDuringSwitcherLoad;
 static double cardScale;
 static double cardScaleLandscape;
 static double cornerRadius;
@@ -15,11 +15,106 @@ static double horizSpacingPort;
 static double vertSpacingLand;
 static double horizSpacingLand;
 
+// ===== MobileGestalt 相关 =====
+static NSMutableDictionary *originalGestaltValues;
+static BOOL isPadSpoofed = NO;
+
+// MobileGestalt 函数指针
+static CFTypeRef (*MGCopyAnswer)(CFStringRef question);
+static void (*MGSetAnswer)(CFStringRef question, CFTypeRef answer);
+
+// 关键键值
+#define kMGQProductType CFSTR("ProductType")
+#define kMGQDeviceClass CFSTR("DeviceClass")
+#define kMGQDeviceClassNumber CFSTR("DeviceClassNumber")
+#define kMGQSupportsMultitasking CFSTR("SupportsMultitasking")
+#define kMGQSupportsVoiceOver CFSTR("SupportsVoiceOver")
+
+// ===== 工具函数：获取/设置 Gestalt 值 =====
+static CFTypeRef getGestaltAnswer(CFStringRef key) {
+    if (!MGCopyAnswer) return NULL;
+    return MGCopyAnswer(key);
+}
+
+static void setGestaltAnswer(CFStringRef key, CFTypeRef value) {
+    if (!MGSetAnswer) return;
+    MGSetAnswer(key, value);
+}
+
+// ===== 备份原始值 =====
+static void backupGestaltValues(void) {
+    originalGestaltValues = [NSMutableDictionary dictionary];
+    
+    NSArray *keys = @[
+        (__bridge id)kMGQProductType,
+        (__bridge id)kMGQDeviceClass,
+        (__bridge id)kMGQDeviceClassNumber,
+        (__bridge id)kMGQSupportsMultitasking,
+        (__bridge id)kMGQSupportsVoiceOver
+    ];
+    
+    for (id key in keys) {
+        CFStringRef cfKey = (__bridge CFStringRef)key;
+        CFTypeRef value = getGestaltAnswer(cfKey);
+        if (value) {
+            originalGestaltValues[key] = (__bridge id)value;
+        }
+    }
+}
+
+// ===== 应用 iPad 伪装 =====
+static void applyPadSpoof(void) {
+    if (isPadSpoofed) return;
+    if (!originalGestaltValues) {
+        backupGestaltValues();
+    }
+    
+    // 设置为 iPad 的标识
+    setGestaltAnswer(kMGQProductType, CFSTR("iPad13,8"));  // iPad Pro 11-inch (3rd gen)
+    setGestaltAnswer(kMGQDeviceClass, CFSTR("iPad"));
+    setGestaltAnswer(kMGQDeviceClassNumber, CFSTR("6"));   // iPad 设备类编号
+    setGestaltAnswer(kMGQSupportsMultitasking, kCFBooleanTrue);
+    setGestaltAnswer(kMGQSupportsVoiceOver, kCFBooleanTrue);
+    
+    isPadSpoofed = YES;
+}
+
+// ===== 恢复原始值 =====
+static void revertPadSpoof(void) {
+    if (!isPadSpoofed) return;
+    if (!originalGestaltValues) return;
+    
+    for (id key in originalGestaltValues) {
+        CFStringRef cfKey = (__bridge CFStringRef)key;
+        id value = originalGestaltValues[key];
+        if (value) {
+            setGestaltAnswer(cfKey, (__bridge CFTypeRef)value);
+        }
+    }
+    
+    isPadSpoofed = NO;
+}
+
+// ===== 初始化 MobileGestalt =====
+static void initMobileGestalt(void) {
+    void *handle = dlopen("/usr/lib/libMobileGestalt.dylib", RTLD_LAZY);
+    if (!handle) return;
+    
+    MGCopyAnswer = (CFTypeRef (*)(CFStringRef))dlsym(handle, "MGCopyAnswer");
+    MGSetAnswer = (void (*)(CFStringRef, CFTypeRef))dlsym(handle, "MGSetAnswer");
+    
+    if (MGCopyAnswer && MGSetAnswer) {
+        backupGestaltValues();
+    }
+}
+
+// ===== 判断横竖屏 =====
 static BOOL IsLandscape(void) {
     CGSize size = [UIScreen mainScreen].bounds.size;
     return size.width > size.height;
 }
 
+// ===== 开关和设置 =====
 static BOOL KillSwitchActive(void) {
     return [[NSFileManager defaultManager] fileExistsAtPath:killSwitchPath];
 }
@@ -78,169 +173,20 @@ void ReloadPrefs(void) {
     horizSpacingLand = NormalizedSpacingPref(prefs, @"horizSpacingLand", 50.0, 11.6);
 }
 
-// ===== 获取应用 Bundle ID =====
-static NSString* getBundleIDFromView(UIView *view) {
-    if (!view) return nil;
-    
-    // 方法1：直接通过 appLayout 属性获取
-    if ([view respondsToSelector:@selector(appLayout)]) {
-        id appLayout = [view performSelector:@selector(appLayout)];
-        if (appLayout && [appLayout respondsToSelector:@selector(bundleIdentifier)]) {
-            NSString *bundleID = [appLayout performSelector:@selector(bundleIdentifier)];
-            if (bundleID.length > 0) return bundleID;
-        }
-        // 尝试 KVC
-        if (appLayout) {
-            NSString *bundleID = [appLayout valueForKey:@"bundleIdentifier"];
-            if (bundleID.length > 0) return bundleID;
-        }
+// ===== 修改 SpringBoard 的 UIApplication 初始化，让系统启动时就认为自己是 iPad =====
+%hook UIApplication
+
+- (BOOL)_isSpringBoard {
+    BOOL orig = %orig;
+    if (TweakActive() && !isPadSpoofed) {
+        applyPadSpoof();
     }
-    
-    // 方法2：通过 KVC 直接获取
-    @try {
-        id appLayout = [view valueForKey:@"appLayout"];
-        if (appLayout) {
-            NSString *bundleID = [appLayout valueForKey:@"bundleIdentifier"];
-            if (bundleID.length > 0) return bundleID;
-        }
-    } @catch (NSException *e) {}
-    
-    // 方法3：从父视图获取
-    UIView *superview = view.superview;
-    while (superview) {
-        NSString *bundleID = getBundleIDFromView(superview);
-        if (bundleID.length > 0) return bundleID;
-        superview = superview.superview;
-    }
-    
-    // 方法4：从响应链获取
-    UIResponder *responder = view.nextResponder;
-    while (responder) {
-        if ([responder respondsToSelector:@selector(appLayout)]) {
-            id appLayout = [responder performSelector:@selector(appLayout)];
-            if (appLayout && [appLayout respondsToSelector:@selector(bundleIdentifier)]) {
-                NSString *bundleID = [appLayout performSelector:@selector(bundleIdentifier)];
-                if (bundleID.length > 0) return bundleID;
-            }
-        }
-        if ([responder isKindOfClass:[UIViewController class]]) {
-            // 检查 view controller 的 view 的子视图
-            NSString *bundleID = getBundleIDFromView(((UIViewController *)responder).view);
-            if (bundleID.length > 0) return bundleID;
-        }
-        responder = responder.nextResponder;
-    }
-    
-    return nil;
+    return orig;
 }
 
-// ===== 判断应用是否支持横屏 =====
-static BOOL appSupportsLandscape(NSString *bundleID) {
-    if (!bundleID) return YES; // 默认支持，避免误判
-    
-    // 方法1：通过 LSApplicationProxy
-    Class LSApplicationProxy = NSClassFromString(@"LSApplicationProxy");
-    if (LSApplicationProxy) {
-        id appProxy = [LSApplicationProxy performSelector:@selector(applicationProxyForIdentifier:) withObject:bundleID];
-        if (appProxy) {
-            NSArray *orientations = [appProxy valueForKey:@"supportedInterfaceOrientations"];
-            if (orientations && [orientations isKindOfClass:[NSArray class]]) {
-                for (NSNumber *num in orientations) {
-                    NSInteger orientation = [num integerValue];
-                    if (orientation == UIInterfaceOrientationLandscapeLeft ||
-                        orientation == UIInterfaceOrientationLandscapeRight) {
-                        return YES;
-                    }
-                }
-                return NO;
-            }
-        }
-    }
-    
-    // 方法2：通过 SBApplication
-    Class SBApplicationController = NSClassFromString(@"SBApplicationController");
-    if (SBApplicationController) {
-        id controller = [SBApplicationController performSelector:@selector(sharedInstance)];
-        if (controller) {
-            id appInfo = [controller performSelector:@selector(applicationInfoForBundleIdentifier:) withObject:bundleID];
-            if (appInfo) {
-                NSArray *orientations = [appInfo valueForKey:@"supportedInterfaceOrientations"];
-                if (orientations && [orientations isKindOfClass:[NSArray class]]) {
-                    for (NSNumber *num in orientations) {
-                        NSInteger orientation = [num integerValue];
-                        if (orientation == UIInterfaceOrientationLandscapeLeft ||
-                            orientation == UIInterfaceOrientationLandscapeRight) {
-                            return YES;
-                        }
-                    }
-                    return NO;
-                }
-            }
-        }
-    }
-    
-    // 默认认为不支持横屏（更安全）
-    return NO;
-}
+%end
 
-// ===== 旋转图片到竖屏（逆时针90度）=====
-static UIImage* rotateImageToPortrait(UIImage *image) {
-    if (!image) return nil;
-    CGSize size = image.size;
-    if (size.width <= size.height) return image; // 已经是竖屏
-    
-    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size.height, size.width), NO, image.scale);
-    CGContextRef context = UIGraphicsGetCurrentContext();
-    CGContextTranslateCTM(context, size.height, 0);
-    CGContextRotateCTM(context, -M_PI_2);
-    [image drawInRect:CGRectMake(0, 0, size.width, size.height)];
-    UIImage *rotated = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-    return rotated;
-}
-
-// ===== 修正不支持横屏 App 的快照 =====
-static void fixSnapshotContent(UIView *view) {
-    if (!TweakActive() || !IsLandscape()) return;
-    
-    // 检查是否是快照视图
-    Class snapshotClass = NSClassFromString(@"SBAppSwitcherSnapshotView");
-    if (snapshotClass && [view isKindOfClass:snapshotClass]) {
-        // 获取 bundle ID
-        NSString *bundleID = getBundleIDFromView(view);
-        
-        // 如果获取到 bundle ID 且应用不支持横屏
-        if (bundleID && !appSupportsLandscape(bundleID)) {
-            // 1. 重置视图变换（去除旋转，保留平移）
-            CGAffineTransform transform = view.transform;
-            if (transform.a != 1.0 || transform.b != 0.0 || transform.c != 0.0 || transform.d != 1.0) {
-                CGAffineTransform identity = CGAffineTransformMakeTranslation(transform.tx, transform.ty);
-                view.transform = identity;
-            }
-            
-            // 2. 修正快照内容中的图片
-            for (UIView *subview in view.subviews) {
-                if ([subview isKindOfClass:[UIImageView class]]) {
-                    UIImageView *imageView = (UIImageView *)subview;
-                    UIImage *image = imageView.image;
-                    if (image && image.size.width > image.size.height) {
-                        UIImage *rotated = rotateImageToPortrait(image);
-                        if (rotated != image) {
-                            imageView.image = rotated;
-                        }
-                    }
-                }
-            }
-        }
-        return;
-    }
-    
-    // 递归处理子视图
-    for (UIView *subview in view.subviews) {
-        fixSnapshotContent(subview);
-    }
-}
-
+// ===== 确保切换器样式为网格 =====
 %hook SBAppSwitcherSettings
 
 - (long long)switcherStyle {
@@ -307,6 +253,7 @@ static void fixSnapshotContent(UIView *view) {
 
 %end
 
+// ===== 卡片圆角 =====
 %hook SBMixedGridSwitcherModifier
 
 - (double)_cardCornerRadiusInSwitcher {
@@ -316,80 +263,28 @@ static void fixSnapshotContent(UIView *view) {
     return %orig;
 }
 
-- (void)layoutSubviews {
+%end
+
+// ===== 恢复伪装（防止影响其他应用）=====
+%hook UIApplication
+
+- (void)dealloc {
+    if (isPadSpoofed) {
+        revertPadSpoof();
+    }
     %orig;
-    if (TweakActive() && IsLandscape()) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            fixSnapshotContent((UIView *)self);
-        });
-    }
 }
 
 %end
 
-%hook UIDevice
-
-- (long long)userInterfaceIdiom {
-    if(TweakActive() && spoofPadIdiomDuringSwitcherLoad) {
-        return 1;
-    }
-    return %orig;
-}
-
-%end
-
-%hook SBFluidSwitcherViewController
-
-- (BOOL)isDevicePad {
-    if(TweakActive()) {
-        return YES;
-    }
-    return %orig;
-}
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    if (TweakActive() && IsLandscape()) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            fixSnapshotContent([(UIViewController *)self view]);
-        });
-    }
-}
-
-- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
-    %orig;
-    if (TweakActive()) {
-        [coordinator animateAlongsideTransition:nil completion:^(id context) {
-            if (IsLandscape()) {
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-                    fixSnapshotContent([(UIViewController *)self view]);
-                });
-            }
-        }];
-    }
-}
-
-%end
-
-%hook SBMainSwitcherControllerCoordinator
-
-- (void)_loadContentViewControllerIfNecessaryForWindowScene:(id)windowScene {
-    if(!TweakActive()) {
-        %orig(windowScene);
-        return;
-    }
-
-    spoofPadIdiomDuringSwitcherLoad = YES;
-    %orig(windowScene);
-    spoofPadIdiomDuringSwitcherLoad = NO;
-}
-
-%end
-
+// ===== 构造 =====
 %ctor {
     if(KillSwitchActive()) {
         return;
     }
+
+    // 初始化 MobileGestalt
+    initMobileGestalt();
 
     ReloadPrefs();
 
