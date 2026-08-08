@@ -8,19 +8,38 @@
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>步进器测试</string>
+			<string>选项</string>
 		</dict>
 		<dict>
 			<key>cell</key>
-			<string>PSStepperCell</string>
+			<string>PSSwitchCell</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.schlub51.fipad</string>
+			<key>key</key>
+			<string>isEnabled</string>
+			<key>label</key>
+			<string>启用</string>
+			<key>PostNotification</key>
+			<string>com.schlub51.fipad.changed</string>
+		</dict>
+
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>竖屏设置</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
 			<key>default</key>
 			<string>0.38</string>
 			<key>min</key>
 			<string>0.20</string>
 			<key>max</key>
 			<string>0.50</string>
-			<key>stepValue</key>
-			<real>0.01</real>
 			<key>showValue</key>
 			<true/>
 			<key>defaults</key>
@@ -31,6 +50,153 @@
 			<string>卡片缩放</string>
 			<key>PostNotification</key>
 			<string>com.schlub51.fipad.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<string>50</string>
+			<key>min</key>
+			<string>10</string>
+			<key>max</key>
+			<string>120</string>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.schlub51.fipad</string>
+			<key>key</key>
+			<string>vertSpacingPort</string>
+			<key>label</key>
+			<string>垂直间距</string>
+			<key>PostNotification</key>
+			<string>com.schlub51.fipad.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<string>50</string>
+			<key>min</key>
+			<string>10</string>
+			<key>max</key>
+			<string>120</string>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.schlub51.fipad</string>
+			<key>key</key>
+			<string>horizSpacingPort</string>
+			<key>label</key>
+			<string>水平间距</string>
+			<key>PostNotification</key>
+			<string>com.schlub51.fipad.changed</string>
+		</dict>
+
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>横屏设置</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<string>0.38</string>
+			<key>min</key>
+			<string>0.20</string>
+			<key>max</key>
+			<string>0.50</string>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.schlub51.fipad</string>
+			<key>key</key>
+			<string>cardScaleLandscape</string>
+			<key>label</key>
+			<string>卡片缩放</string>
+			<key>PostNotification</key>
+			<string>com.schlub51.fipad.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<string>50</string>
+			<key>min</key>
+			<string>10</string>
+			<key>max</key>
+			<string>120</string>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.schlub51.fipad</string>
+			<key>key</key>
+			<string>vertSpacingLand</string>
+			<key>label</key>
+			<string>垂直间距</string>
+			<key>PostNotification</key>
+			<string>com.schlub51.fipad.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<string>50</string>
+			<key>min</key>
+			<string>10</string>
+			<key>max</key>
+			<string>120</string>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.schlub51.fipad</string>
+			<key>key</key>
+			<string>horizSpacingLand</string>
+			<key>label</key>
+			<string>水平间距</string>
+			<key>PostNotification</key>
+			<string>com.schlub51.fipad.changed</string>
+		</dict>
+
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>卡片圆角</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<string>10</string>
+			<key>min</key>
+			<string>0</string>
+			<key>max</key>
+			<string>40</string>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.schlub51.fipad</string>
+			<key>key</key>
+			<string>cornerRadius</string>
+			<key>label</key>
+			<string>圆角半径</string>
+			<key>PostNotification</key>
+			<string>com.schlub51.fipad.changed</string>
+		</dict>
+
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+		</dict>
+		<dict>
+			<key>action</key>
+			<string>sbreload</string>
+			<key>cell</key>
+			<string>PSButtonCell</string>
+			<key>label</key>
+			<string>应用更改</string>
 		</dict>
 	</array>
 	<key>title</key>
