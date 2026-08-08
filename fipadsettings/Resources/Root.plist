@@ -33,6 +33,12 @@
 		</dict>
 		<dict>
 			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>卡片缩放</string>
+		</dict>
+		<dict>
+			<key>cell</key>
 			<string>PSSliderCell</string>
 			<key>default</key>
 			<string>0.38</string>
@@ -46,10 +52,14 @@
 			<string>com.schlub51.fipad</string>
 			<key>key</key>
 			<string>cardScale</string>
-			<key>label</key>
-			<string>卡片缩放</string>
 			<key>PostNotification</key>
 			<string>com.schlub51.fipad.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>垂直间距</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -66,10 +76,14 @@
 			<string>com.schlub51.fipad</string>
 			<key>key</key>
 			<string>vertSpacingPort</string>
-			<key>label</key>
-			<string>垂直间距</string>
 			<key>PostNotification</key>
 			<string>com.schlub51.fipad.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>水平间距</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -86,8 +100,6 @@
 			<string>com.schlub51.fipad</string>
 			<key>key</key>
 			<string>horizSpacingPort</string>
-			<key>label</key>
-			<string>水平间距</string>
 			<key>PostNotification</key>
 			<string>com.schlub51.fipad.changed</string>
 		</dict>
@@ -97,6 +109,12 @@
 			<string>PSGroupCell</string>
 			<key>label</key>
 			<string>横屏设置</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>卡片缩放</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -113,10 +131,14 @@
 			<string>com.schlub51.fipad</string>
 			<key>key</key>
 			<string>cardScaleLandscape</string>
-			<key>label</key>
-			<string>卡片缩放</string>
 			<key>PostNotification</key>
 			<string>com.schlub51.fipad.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>垂直间距</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -133,10 +155,14 @@
 			<string>com.schlub51.fipad</string>
 			<key>key</key>
 			<string>vertSpacingLand</string>
-			<key>label</key>
-			<string>垂直间距</string>
 			<key>PostNotification</key>
 			<string>com.schlub51.fipad.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>水平间距</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -153,8 +179,6 @@
 			<string>com.schlub51.fipad</string>
 			<key>key</key>
 			<string>horizSpacingLand</string>
-			<key>label</key>
-			<string>水平间距</string>
 			<key>PostNotification</key>
 			<string>com.schlub51.fipad.changed</string>
 		</dict>
@@ -164,6 +188,12 @@
 			<string>PSGroupCell</string>
 			<key>label</key>
 			<string>卡片圆角</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>圆角半径</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -180,8 +210,6 @@
 			<string>com.schlub51.fipad</string>
 			<key>key</key>
 			<string>cornerRadius</string>
-			<key>label</key>
-			<string>圆角半径</string>
 			<key>PostNotification</key>
 			<string>com.schlub51.fipad.changed</string>
 		</dict>
