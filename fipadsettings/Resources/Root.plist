@@ -4,6 +4,7 @@
 <dict>
 	<key>items</key>
 	<array>
+		<!-- 选项 -->
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
@@ -24,11 +25,13 @@
 			<key>PostNotification</key>
 			<string>com.schlub51.fipad.changed</string>
 		</dict>
+
+		<!-- ===== 竖屏设置 ===== -->
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
-			<string>卡片尺寸</string>
+			<string>竖屏设置</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -50,11 +53,65 @@
 			<key>key</key>
 			<string>cardScale</string>
 			<key>label</key>
-			<string>竖屏缩放</string>
-			<key>isSegmented</key>
-			<false/>
+			<string>卡片缩放</string>
 			<key>PostNotification</key>
 			<string>com.schlub51.fipad.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<string>50</string>
+			<key>min</key>
+			<string>10</string>
+			<key>max</key>
+			<string>120</string>
+			<key>stepValue</key>
+			<real>1</real>
+			<key>hasStepper</key>
+			<true/>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.schlub51.fipad</string>
+			<key>key</key>
+			<string>vertSpacingPort</string>
+			<key>label</key>
+			<string>垂直间距</string>
+			<key>PostNotification</key>
+			<string>com.schlub51.fipad.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<string>50</string>
+			<key>min</key>
+			<string>10</string>
+			<key>max</key>
+			<string>120</string>
+			<key>stepValue</key>
+			<real>1</real>
+			<key>hasStepper</key>
+			<true/>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.schlub51.fipad</string>
+			<key>key</key>
+			<string>horizSpacingPort</string>
+			<key>label</key>
+			<string>水平间距</string>
+			<key>PostNotification</key>
+			<string>com.schlub51.fipad.changed</string>
+		</dict>
+
+		<!-- ===== 横屏设置 ===== -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>横屏设置</string>
 		</dict>
 		<dict>
 			<key>cell</key>
@@ -76,12 +133,60 @@
 			<key>key</key>
 			<string>cardScaleLandscape</string>
 			<key>label</key>
-			<string>横屏缩放</string>
-			<key>isSegmented</key>
-			<false/>
+			<string>卡片缩放</string>
 			<key>PostNotification</key>
 			<string>com.schlub51.fipad.changed</string>
 		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<string>50</string>
+			<key>min</key>
+			<string>10</string>
+			<key>max</key>
+			<string>120</string>
+			<key>stepValue</key>
+			<real>1</real>
+			<key>hasStepper</key>
+			<true/>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.schlub51.fipad</string>
+			<key>key</key>
+			<string>vertSpacingLand</string>
+			<key>label</key>
+			<string>垂直间距</string>
+			<key>PostNotification</key>
+			<string>com.schlub51.fipad.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<string>50</string>
+			<key>min</key>
+			<string>10</string>
+			<key>max</key>
+			<string>120</string>
+			<key>stepValue</key>
+			<real>1</real>
+			<key>hasStepper</key>
+			<true/>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.schlub51.fipad</string>
+			<key>key</key>
+			<string>horizSpacingLand</string>
+			<key>label</key>
+			<string>水平间距</string>
+			<key>PostNotification</key>
+			<string>com.schlub51.fipad.changed</string>
+		</dict>
+
+		<!-- ===== 卡片圆角（共用） ===== -->
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
@@ -109,151 +214,11 @@
 			<string>cornerRadius</string>
 			<key>label</key>
 			<string>圆角半径</string>
-			<key>isSegmented</key>
-			<false/>
 			<key>PostNotification</key>
 			<string>com.schlub51.fipad.changed</string>
 		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>footerText</key>
-			<string>竖屏模式</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>label</key>
-			<string>垂直间距</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSliderCell</string>
-			<key>default</key>
-			<string>50</string>
-			<key>min</key>
-			<string>10</string>
-			<key>max</key>
-			<string>120</string>
-			<key>stepValue</key>
-			<real>1</real>
-			<key>hasStepper</key>
-			<true/>
-			<key>showValue</key>
-			<true/>
-			<key>defaults</key>
-			<string>com.schlub51.fipad</string>
-			<key>key</key>
-			<string>vertSpacingPort</string>
-			<key>label</key>
-			<string>垂直</string>
-			<key>isSegmented</key>
-			<false/>
-			<key>PostNotification</key>
-			<string>com.schlub51.fipad.changed</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>label</key>
-			<string>水平间距</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSliderCell</string>
-			<key>default</key>
-			<string>50</string>
-			<key>min</key>
-			<string>10</string>
-			<key>max</key>
-			<string>120</string>
-			<key>stepValue</key>
-			<real>1</real>
-			<key>hasStepper</key>
-			<true/>
-			<key>showValue</key>
-			<true/>
-			<key>defaults</key>
-			<string>com.schlub51.fipad</string>
-			<key>key</key>
-			<string>horizSpacingPort</string>
-			<key>label</key>
-			<string>水平</string>
-			<key>isSegmented</key>
-			<false/>
-			<key>PostNotification</key>
-			<string>com.schlub51.fipad.changed</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>footerText</key>
-			<string>横屏模式</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>label</key>
-			<string>垂直间距</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSliderCell</string>
-			<key>default</key>
-			<string>50</string>
-			<key>min</key>
-			<string>10</string>
-			<key>max</key>
-			<string>120</string>
-			<key>stepValue</key>
-			<real>1</real>
-			<key>hasStepper</key>
-			<true/>
-			<key>showValue</key>
-			<true/>
-			<key>defaults</key>
-			<string>com.schlub51.fipad</string>
-			<key>key</key>
-			<string>vertSpacingLand</string>
-			<key>label</key>
-			<string>垂直</string>
-			<key>isSegmented</key>
-			<false/>
-			<key>PostNotification</key>
-			<string>com.schlub51.fipad.changed</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSGroupCell</string>
-			<key>label</key>
-			<string>水平间距</string>
-		</dict>
-		<dict>
-			<key>cell</key>
-			<string>PSSliderCell</string>
-			<key>default</key>
-			<string>50</string>
-			<key>min</key>
-			<string>10</string>
-			<key>max</key>
-			<string>120</string>
-			<key>stepValue</key>
-			<real>1</real>
-			<key>hasStepper</key>
-			<true/>
-			<key>showValue</key>
-			<true/>
-			<key>defaults</key>
-			<string>com.schlub51.fipad</string>
-			<key>key</key>
-			<string>horizSpacingLand</string>
-			<key>label</key>
-			<string>水平</string>
-			<key>isSegmented</key>
-			<false/>
-			<key>PostNotification</key>
-			<string>com.schlub51.fipad.changed</string>
-		</dict>
+
+		<!-- 应用更改 -->
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
