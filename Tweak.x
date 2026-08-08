@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <substrate.h>
+#import <objc/runtime.h>
 
 NSString *const domainString = @"com.schlub51.fipad";
 NSString *const killSwitchPath = @"/var/mobile/fipad.disable";
@@ -33,7 +34,7 @@ static double SettingsScaledAppExposeValue(double native) {
     }
     double scale = cardScale / 0.30;
     if(IsLandscape()) {
-        scale *= 0.75;   // 改为 0.75，大小适中
+        scale *= 0.75;   // 横屏缩放适中
     }
     return native * scale;
 }
@@ -164,7 +165,8 @@ static void new_setTransform(id self, SEL _cmd, CGAffineTransform transform) {
     %orig;
     if (TweakActive() && IsLandscape()) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+            UIView *view = (UIView *)self;  // 强制类型转换
+            [view.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
                 Class snapshotClass = NSClassFromString(@"SBAppSwitcherSnapshotView");
                 if (snapshotClass && [obj isKindOfClass:snapshotClass]) {
                     CGAffineTransform transform = obj.transform;
@@ -204,7 +206,8 @@ static void new_setTransform(id self, SEL _cmd, CGAffineTransform transform) {
     %orig;
     if (TweakActive() && IsLandscape()) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            [self.view.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+            UIView *view = [(UIViewController *)self view];  // 强制类型转换
+            [view.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
                 Class snapshotClass = NSClassFromString(@"SBAppSwitcherSnapshotView");
                 if (snapshotClass && [obj isKindOfClass:snapshotClass]) {
                     CGAffineTransform transform = obj.transform;
