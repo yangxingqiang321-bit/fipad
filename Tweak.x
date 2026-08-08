@@ -78,64 +78,112 @@ void ReloadPrefs(void) {
     horizSpacingLand = NormalizedSpacingPref(prefs, @"horizSpacingLand", 50.0, 11.6);
 }
 
-// ===== 获取应用 Bundle ID（多种方式） =====
+// ===== 获取应用 Bundle ID =====
 static NSString* getBundleIDFromView(UIView *view) {
-    // 方法1：通过 appLayout
+    if (!view) return nil;
+    
+    // 方法1：直接通过 appLayout 属性获取
     if ([view respondsToSelector:@selector(appLayout)]) {
         id appLayout = [view performSelector:@selector(appLayout)];
         if (appLayout && [appLayout respondsToSelector:@selector(bundleIdentifier)]) {
             NSString *bundleID = [appLayout performSelector:@selector(bundleIdentifier)];
-            if (bundleID.length > 0) {
-                return bundleID;
-            }
+            if (bundleID.length > 0) return bundleID;
+        }
+        // 尝试 KVC
+        if (appLayout) {
+            NSString *bundleID = [appLayout valueForKey:@"bundleIdentifier"];
+            if (bundleID.length > 0) return bundleID;
         }
     }
-    // 方法2：遍历子视图找 SBAppSwitcherItemContainer
-    for (UIView *subview in view.subviews) {
-        if ([subview isKindOfClass:NSClassFromString(@"SBAppSwitcherItemContainer")] ||
-            [subview isKindOfClass:NSClassFromString(@"SBFluidSwitcherItemContainer")]) {
-            if ([subview respondsToSelector:@selector(appLayout)]) {
-                id appLayout = [subview performSelector:@selector(appLayout)];
-                if (appLayout && [appLayout respondsToSelector:@selector(bundleIdentifier)]) {
-                    NSString *bundleID = [appLayout performSelector:@selector(bundleIdentifier)];
-                    if (bundleID.length > 0) {
-                        return bundleID;
-                    }
-                }
+    
+    // 方法2：通过 KVC 直接获取
+    @try {
+        id appLayout = [view valueForKey:@"appLayout"];
+        if (appLayout) {
+            NSString *bundleID = [appLayout valueForKey:@"bundleIdentifier"];
+            if (bundleID.length > 0) return bundleID;
+        }
+    } @catch (NSException *e) {}
+    
+    // 方法3：从父视图获取
+    UIView *superview = view.superview;
+    while (superview) {
+        NSString *bundleID = getBundleIDFromView(superview);
+        if (bundleID.length > 0) return bundleID;
+        superview = superview.superview;
+    }
+    
+    // 方法4：从响应链获取
+    UIResponder *responder = view.nextResponder;
+    while (responder) {
+        if ([responder respondsToSelector:@selector(appLayout)]) {
+            id appLayout = [responder performSelector:@selector(appLayout)];
+            if (appLayout && [appLayout respondsToSelector:@selector(bundleIdentifier)]) {
+                NSString *bundleID = [appLayout performSelector:@selector(bundleIdentifier)];
+                if (bundleID.length > 0) return bundleID;
             }
         }
-        // 递归查找
-        NSString *found = getBundleIDFromView(subview);
-        if (found) return found;
+        if ([responder isKindOfClass:[UIViewController class]]) {
+            // 检查 view controller 的 view 的子视图
+            NSString *bundleID = getBundleIDFromView(((UIViewController *)responder).view);
+            if (bundleID.length > 0) return bundleID;
+        }
+        responder = responder.nextResponder;
     }
+    
     return nil;
 }
 
 // ===== 判断应用是否支持横屏 =====
 static BOOL appSupportsLandscape(NSString *bundleID) {
-    if (!bundleID) return NO;
-    // 通过 LSApplicationProxy（私有 API）
+    if (!bundleID) return YES; // 默认支持，避免误判
+    
+    // 方法1：通过 LSApplicationProxy
     Class LSApplicationProxy = NSClassFromString(@"LSApplicationProxy");
-    if (!LSApplicationProxy) return NO;
-    
-    id appProxy = [LSApplicationProxy performSelector:@selector(applicationProxyForIdentifier:) withObject:bundleID];
-    if (!appProxy) return NO;
-    
-    // 获取支持的方向数组
-    NSArray *orientations = [appProxy performSelector:@selector(supportedInterfaceOrientations)];
-    if (!orientations) return NO;
-    
-    for (NSNumber *num in orientations) {
-        UIInterfaceOrientation orientation = [num integerValue];
-        if (orientation == UIInterfaceOrientationLandscapeLeft ||
-            orientation == UIInterfaceOrientationLandscapeRight) {
-            return YES;
+    if (LSApplicationProxy) {
+        id appProxy = [LSApplicationProxy performSelector:@selector(applicationProxyForIdentifier:) withObject:bundleID];
+        if (appProxy) {
+            NSArray *orientations = [appProxy valueForKey:@"supportedInterfaceOrientations"];
+            if (orientations && [orientations isKindOfClass:[NSArray class]]) {
+                for (NSNumber *num in orientations) {
+                    NSInteger orientation = [num integerValue];
+                    if (orientation == UIInterfaceOrientationLandscapeLeft ||
+                        orientation == UIInterfaceOrientationLandscapeRight) {
+                        return YES;
+                    }
+                }
+                return NO;
+            }
         }
     }
+    
+    // 方法2：通过 SBApplication
+    Class SBApplicationController = NSClassFromString(@"SBApplicationController");
+    if (SBApplicationController) {
+        id controller = [SBApplicationController performSelector:@selector(sharedInstance)];
+        if (controller) {
+            id appInfo = [controller performSelector:@selector(applicationInfoForBundleIdentifier:) withObject:bundleID];
+            if (appInfo) {
+                NSArray *orientations = [appInfo valueForKey:@"supportedInterfaceOrientations"];
+                if (orientations && [orientations isKindOfClass:[NSArray class]]) {
+                    for (NSNumber *num in orientations) {
+                        NSInteger orientation = [num integerValue];
+                        if (orientation == UIInterfaceOrientationLandscapeLeft ||
+                            orientation == UIInterfaceOrientationLandscapeRight) {
+                            return YES;
+                        }
+                    }
+                    return NO;
+                }
+            }
+        }
+    }
+    
+    // 默认认为不支持横屏（更安全）
     return NO;
 }
 
-// ===== 旋转图片到竖屏 =====
+// ===== 旋转图片到竖屏（逆时针90度）=====
 static UIImage* rotateImageToPortrait(UIImage *image) {
     if (!image) return nil;
     CGSize size = image.size;
@@ -151,39 +199,43 @@ static UIImage* rotateImageToPortrait(UIImage *image) {
     return rotated;
 }
 
-// ===== 修正快照 =====
+// ===== 修正不支持横屏 App 的快照 =====
 static void fixSnapshotContent(UIView *view) {
     if (!TweakActive() || !IsLandscape()) return;
     
+    // 检查是否是快照视图
     Class snapshotClass = NSClassFromString(@"SBAppSwitcherSnapshotView");
     if (snapshotClass && [view isKindOfClass:snapshotClass]) {
-        // 获取 bundleID
+        // 获取 bundle ID
         NSString *bundleID = getBundleIDFromView(view);
+        
+        // 如果获取到 bundle ID 且应用不支持横屏
         if (bundleID && !appSupportsLandscape(bundleID)) {
-            // 不支持横屏的应用：修正快照为竖屏
-            // 1. 重置视图变换（去除旋转）
+            // 1. 重置视图变换（去除旋转，保留平移）
             CGAffineTransform transform = view.transform;
             if (transform.a != 1.0 || transform.b != 0.0 || transform.c != 0.0 || transform.d != 1.0) {
-                view.transform = CGAffineTransformIdentity;
+                CGAffineTransform identity = CGAffineTransformMakeTranslation(transform.tx, transform.ty);
+                view.transform = identity;
             }
-            // 2. 旋转图片内容
-            [view.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull subview, NSUInteger idx, BOOL * _Nonnull stop) {
+            
+            // 2. 修正快照内容中的图片
+            for (UIView *subview in view.subviews) {
                 if ([subview isKindOfClass:[UIImageView class]]) {
                     UIImageView *imageView = (UIImageView *)subview;
                     UIImage *image = imageView.image;
-                    if (image) {
+                    if (image && image.size.width > image.size.height) {
                         UIImage *rotated = rotateImageToPortrait(image);
                         if (rotated != image) {
                             imageView.image = rotated;
                         }
                     }
                 }
-            }];
+            }
         }
         return;
     }
     
-    // 递归子视图
+    // 递归处理子视图
     for (UIView *subview in view.subviews) {
         fixSnapshotContent(subview);
     }
@@ -301,6 +353,19 @@ static void fixSnapshotContent(UIView *view) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             fixSnapshotContent([(UIViewController *)self view]);
         });
+    }
+}
+
+- (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator {
+    %orig;
+    if (TweakActive()) {
+        [coordinator animateAlongsideTransition:nil completion:^(id context) {
+            if (IsLandscape()) {
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    fixSnapshotContent([(UIViewController *)self view]);
+                });
+            }
+        }];
     }
 }
 
