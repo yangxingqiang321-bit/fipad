@@ -1,6 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#import <MobileCoreServices/LSApplicationProxy.h>
+#import <objc/runtime.h>
 
 NSString *const domainString = @"com.schlub51.fipad";
 NSString *const killSwitchPath = @"/var/mobile/fipad.disable";
@@ -78,64 +78,104 @@ void ReloadPrefs(void) {
     horizSpacingLand = NormalizedSpacingPref(prefs, @"horizSpacingLand", 50.0, 11.6);
 }
 
+// ===== 获取应用 Bundle ID（多种方式） =====
+static NSString* getBundleIDFromView(UIView *view) {
+    // 方法1：通过 appLayout
+    if ([view respondsToSelector:@selector(appLayout)]) {
+        id appLayout = [view performSelector:@selector(appLayout)];
+        if (appLayout && [appLayout respondsToSelector:@selector(bundleIdentifier)]) {
+            NSString *bundleID = [appLayout performSelector:@selector(bundleIdentifier)];
+            if (bundleID.length > 0) {
+                return bundleID;
+            }
+        }
+    }
+    // 方法2：遍历子视图找 SBAppSwitcherItemContainer
+    for (UIView *subview in view.subviews) {
+        if ([subview isKindOfClass:NSClassFromString(@"SBAppSwitcherItemContainer")] ||
+            [subview isKindOfClass:NSClassFromString(@"SBFluidSwitcherItemContainer")]) {
+            if ([subview respondsToSelector:@selector(appLayout)]) {
+                id appLayout = [subview performSelector:@selector(appLayout)];
+                if (appLayout && [appLayout respondsToSelector:@selector(bundleIdentifier)]) {
+                    NSString *bundleID = [appLayout performSelector:@selector(bundleIdentifier)];
+                    if (bundleID.length > 0) {
+                        return bundleID;
+                    }
+                }
+            }
+        }
+        // 递归查找
+        NSString *found = getBundleIDFromView(subview);
+        if (found) return found;
+    }
+    return nil;
+}
+
 // ===== 判断应用是否支持横屏 =====
 static BOOL appSupportsLandscape(NSString *bundleID) {
-    LSApplicationProxy *appProxy = [LSApplicationProxy applicationProxyForIdentifier:bundleID];
+    if (!bundleID) return NO;
+    // 通过 LSApplicationProxy（私有 API）
+    Class LSApplicationProxy = NSClassFromString(@"LSApplicationProxy");
+    if (!LSApplicationProxy) return NO;
+    
+    id appProxy = [LSApplicationProxy performSelector:@selector(applicationProxyForIdentifier:) withObject:bundleID];
     if (!appProxy) return NO;
     
     // 获取支持的方向数组
-    NSArray *supportedOrientations = [appProxy performSelector:@selector(supportedInterfaceOrientations)];
-    if (!supportedOrientations) return NO;
+    NSArray *orientations = [appProxy performSelector:@selector(supportedInterfaceOrientations)];
+    if (!orientations) return NO;
     
-    // 检查是否包含横屏方向（UIInterfaceOrientationLandscapeLeft 或 Right）
-    for (NSNumber *num in supportedOrientations) {
+    for (NSNumber *num in orientations) {
         UIInterfaceOrientation orientation = [num integerValue];
-        if (orientation == UIInterfaceOrientationLandscapeLeft || orientation == UIInterfaceOrientationLandscapeRight) {
+        if (orientation == UIInterfaceOrientationLandscapeLeft ||
+            orientation == UIInterfaceOrientationLandscapeRight) {
             return YES;
         }
     }
     return NO;
 }
 
-// ===== 修正快照内容 =====
+// ===== 旋转图片到竖屏 =====
+static UIImage* rotateImageToPortrait(UIImage *image) {
+    if (!image) return nil;
+    CGSize size = image.size;
+    if (size.width <= size.height) return image; // 已经是竖屏
+    
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size.height, size.width), NO, image.scale);
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    CGContextTranslateCTM(context, size.height, 0);
+    CGContextRotateCTM(context, -M_PI_2);
+    [image drawInRect:CGRectMake(0, 0, size.width, size.height)];
+    UIImage *rotated = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return rotated;
+}
+
+// ===== 修正快照 =====
 static void fixSnapshotContent(UIView *view) {
     if (!TweakActive() || !IsLandscape()) return;
     
     Class snapshotClass = NSClassFromString(@"SBAppSwitcherSnapshotView");
     if (snapshotClass && [view isKindOfClass:snapshotClass]) {
-        // 获取应用标识符
-        NSString *bundleID = nil;
-        if ([view respondsToSelector:@selector(appLayout)]) {
-            id appLayout = [view performSelector:@selector(appLayout)];
-            if (appLayout && [appLayout respondsToSelector:@selector(bundleIdentifier)]) {
-                bundleID = [appLayout performSelector:@selector(bundleIdentifier)];
-            }
-        }
-        
-        // 如果应用不支持横屏，则修正快照方向
+        // 获取 bundleID
+        NSString *bundleID = getBundleIDFromView(view);
         if (bundleID && !appSupportsLandscape(bundleID)) {
-            // 将快照视图的变换重置为恒等（去除旋转）
+            // 不支持横屏的应用：修正快照为竖屏
+            // 1. 重置视图变换（去除旋转）
             CGAffineTransform transform = view.transform;
             if (transform.a != 1.0 || transform.b != 0.0 || transform.c != 0.0 || transform.d != 1.0) {
-                CGAffineTransform identity = CGAffineTransformMakeTranslation(transform.tx, transform.ty);
-                view.transform = identity;
+                view.transform = CGAffineTransformIdentity;
             }
-            
-            // 旋转图片内容为竖屏（逆时针90度）
+            // 2. 旋转图片内容
             [view.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull subview, NSUInteger idx, BOOL * _Nonnull stop) {
                 if ([subview isKindOfClass:[UIImageView class]]) {
                     UIImageView *imageView = (UIImageView *)subview;
                     UIImage *image = imageView.image;
-                    if (image && image.size.width > image.size.height) { // 横屏图片
-                        // 旋转为竖屏
-                        UIGraphicsBeginImageContextWithOptions(CGSizeMake(image.size.height, image.size.width), NO, image.scale);
-                        CGContextRef context = UIGraphicsGetCurrentContext();
-                        CGContextTranslateCTM(context, image.size.height, 0);
-                        CGContextRotateCTM(context, -M_PI_2);
-                        [image drawInRect:CGRectMake(0, 0, image.size.width, image.size.height)];
-                        UIImage *rotatedImage = UIGraphicsGetImageFromCurrentImageContext();
-                        UIGraphicsEndImageContext();
-                        imageView.image = rotatedImage;
+                    if (image) {
+                        UIImage *rotated = rotateImageToPortrait(image);
+                        if (rotated != image) {
+                            imageView.image = rotated;
+                        }
                     }
                 }
             }];
@@ -144,9 +184,9 @@ static void fixSnapshotContent(UIView *view) {
     }
     
     // 递归子视图
-    [view.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull subview, NSUInteger idx, BOOL * _Nonnull stop) {
+    for (UIView *subview in view.subviews) {
         fixSnapshotContent(subview);
-    }];
+    }
 }
 
 %hook SBAppSwitcherSettings
@@ -258,7 +298,7 @@ static void fixSnapshotContent(UIView *view) {
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     if (TweakActive() && IsLandscape()) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
             fixSnapshotContent([(UIViewController *)self view]);
         });
     }
