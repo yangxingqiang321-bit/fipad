@@ -25,7 +25,12 @@ static double SettingsScaledAppExposeValue(double native) {
 	if(!TweakActive()) {
 		return native;
 	}
-	return native * (cardScale / 0.30); // 原生基准 0.30
+	double scale = cardScale / 0.30;
+	// 横屏时额外缩小 25%，让卡片能放下两列
+	if(IsLandscape()) {
+		scale *= 0.75;   // 可根据效果调整（0.70 ~ 0.85）
+	}
+	return native * scale;
 }
 
 static BOOL IsLandscape(void) {
@@ -111,20 +116,20 @@ void ReloadPrefs(void) {
 	return value;
 }
 
+// 横屏水平间距：直接使用竖屏值，保证布局一致
 - (double)gridSwitcherHorizontalInterpageSpacingLandscape {
-	double value = %orig;
 	if(TweakActive()) {
-		value *= SpacingMultiplier(NO);
+		return [self gridSwitcherHorizontalInterpageSpacingPortrait];
 	}
-	return value;
+	return %orig;
 }
 
+// 横屏垂直间距：直接使用竖屏值，保证布局一致
 - (double)gridSwitcherVerticalNaturalSpacingLandscape {
-	double value = %orig;
 	if(TweakActive()) {
-		value *= SpacingMultiplier(YES);
+		return [self gridSwitcherVerticalNaturalSpacingPortrait];
 	}
-	return value;
+	return %orig;
 }
 
 - (double)spacingBetweenLeadingEdgeAndIcon {
@@ -133,6 +138,14 @@ void ReloadPrefs(void) {
 		return MIN(value, 8.0);
 	}
 	return value;
+}
+
+// 强制横屏时卡片预览图保持竖屏方向
+- (BOOL)shouldRotateSnapshotsInSwitcher {
+	if(TweakActive() && IsLandscape()) {
+		return NO;  // 横屏时不旋转卡片预览图
+	}
+	return %orig;
 }
 
 %end
