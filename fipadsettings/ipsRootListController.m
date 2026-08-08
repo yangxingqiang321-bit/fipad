@@ -24,7 +24,6 @@ NSString *const domainString = @"com.schlub51.fipad";
 
 - (void)setupCustomUI {
     CGFloat screenWidth = self.view.bounds.size.width;
-    CGFloat screenHeight = self.view.bounds.size.height;
     CGFloat margin = 20;
     CGFloat contentWidth = screenWidth - margin * 2;
     
