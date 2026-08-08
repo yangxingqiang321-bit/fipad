@@ -34,7 +34,7 @@ static double SettingsScaledAppExposeValue(double native) {
     }
     double scale = cardScale / 0.30;
     if(IsLandscape()) {
-        scale *= 0.75;   // 横屏缩放适中
+        scale *= 0.75;
     }
     return native * scale;
 }
@@ -70,7 +70,53 @@ void ReloadPrefs(void) {
     horizSpacingLand = NormalizedSpacingPref(prefs, @"horizSpacingLand", 50.0, 11.6);
 }
 
-// ===== 拦截快照视图的 setTransform: =====
+// ===== 工具：旋转 UIImage 到竖屏 =====
+static UIImage *rotateImageToPortrait(UIImage *image) {
+    if (!image) return nil;
+    CGSize size = image.size;
+    if (size.width <= size.height) return image; // 已经是竖屏
+    
+    // 旋转90度（逆时针）
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size.height, size.width), NO, image.scale);
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    CGContextTranslateCTM(context, size.height, 0);
+    CGContextRotateCTM(context, -M_PI_2);
+    [image drawInRect:CGRectMake(0, 0, size.width, size.height)];
+    UIImage *rotatedImage = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return rotatedImage;
+}
+
+// ===== 递归修正快照视图中的 UIImageView =====
+static void fixSnapshotContent(UIView *view) {
+    if (!TweakActive() || !IsLandscape()) return;
+    
+    // 检查是否是快照视图
+    Class snapshotClass = NSClassFromString(@"SBAppSwitcherSnapshotView");
+    if (snapshotClass && [view isKindOfClass:snapshotClass]) {
+        // 遍历子视图，找到 UIImageView
+        [view.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull subview, NSUInteger idx, BOOL * _Nonnull stop) {
+            if ([subview isKindOfClass:[UIImageView class]]) {
+                UIImageView *imageView = (UIImageView *)subview;
+                UIImage *image = imageView.image;
+                if (image) {
+                    UIImage *rotated = rotateImageToPortrait(image);
+                    if (rotated != image) {
+                        imageView.image = rotated;
+                    }
+                }
+            }
+        }];
+        return;
+    }
+    
+    // 递归子视图
+    [view.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull subview, NSUInteger idx, BOOL * _Nonnull stop) {
+        fixSnapshotContent(subview);
+    }];
+}
+
+// ===== 拦截 setTransform:（阻止视图旋转）=====
 static void (*orig_setTransform)(id self, SEL _cmd, CGAffineTransform transform);
 static void new_setTransform(id self, SEL _cmd, CGAffineTransform transform) {
     if (TweakActive() && IsLandscape()) {
@@ -165,17 +211,7 @@ static void new_setTransform(id self, SEL _cmd, CGAffineTransform transform) {
     %orig;
     if (TweakActive() && IsLandscape()) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            UIView *view = (UIView *)self;  // 强制类型转换
-            [view.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-                Class snapshotClass = NSClassFromString(@"SBAppSwitcherSnapshotView");
-                if (snapshotClass && [obj isKindOfClass:snapshotClass]) {
-                    CGAffineTransform transform = obj.transform;
-                    if (transform.a != 1.0 || transform.b != 0.0 || transform.c != 0.0 || transform.d != 1.0) {
-                        CGAffineTransform identity = CGAffineTransformMakeTranslation(transform.tx, transform.ty);
-                        obj.transform = identity;
-                    }
-                }
-            }];
+            fixSnapshotContent((UIView *)self);
         });
     }
 }
@@ -205,18 +241,8 @@ static void new_setTransform(id self, SEL _cmd, CGAffineTransform transform) {
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     if (TweakActive() && IsLandscape()) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            UIView *view = [(UIViewController *)self view];  // 强制类型转换
-            [view.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
-                Class snapshotClass = NSClassFromString(@"SBAppSwitcherSnapshotView");
-                if (snapshotClass && [obj isKindOfClass:snapshotClass]) {
-                    CGAffineTransform transform = obj.transform;
-                    if (transform.a != 1.0 || transform.b != 0.0 || transform.c != 0.0 || transform.d != 1.0) {
-                        CGAffineTransform identity = CGAffineTransformMakeTranslation(transform.tx, transform.ty);
-                        obj.transform = identity;
-                    }
-                }
-            }];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            fixSnapshotContent([(UIViewController *)self view]);
         });
     }
 }
