@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <MobileCoreServices/LSApplicationProxy.h>
 
 NSString *const domainString = @"com.schlub51.fipad";
 NSString *const killSwitchPath = @"/var/mobile/fipad.disable";
@@ -7,7 +8,7 @@ NSString *const killSwitchPath = @"/var/mobile/fipad.disable";
 static BOOL isEnabled;
 static BOOL spoofPadIdiomDuringSwitcherLoad;
 static double cardScale;
-static double cardScaleLandscape;  // 横屏卡片缩放
+static double cardScaleLandscape;
 static double cornerRadius;
 static double vertSpacingPort;
 static double horizSpacingPort;
@@ -40,7 +41,6 @@ static double SettingsScaledAppExposeValue(double native) {
     return native * scale;
 }
 
-// 间距倍数（横竖屏独立）
 static double SpacingMultiplier(BOOL vertical) {
     double value;
     if (IsLandscape()) {
@@ -78,11 +78,82 @@ void ReloadPrefs(void) {
     horizSpacingLand = NormalizedSpacingPref(prefs, @"horizSpacingLand", 50.0, 11.6);
 }
 
+// ===== 判断应用是否支持横屏 =====
+static BOOL appSupportsLandscape(NSString *bundleID) {
+    LSApplicationProxy *appProxy = [LSApplicationProxy applicationProxyForIdentifier:bundleID];
+    if (!appProxy) return NO;
+    
+    // 获取支持的方向数组
+    NSArray *supportedOrientations = [appProxy performSelector:@selector(supportedInterfaceOrientations)];
+    if (!supportedOrientations) return NO;
+    
+    // 检查是否包含横屏方向（UIInterfaceOrientationLandscapeLeft 或 Right）
+    for (NSNumber *num in supportedOrientations) {
+        UIInterfaceOrientation orientation = [num integerValue];
+        if (orientation == UIInterfaceOrientationLandscapeLeft || orientation == UIInterfaceOrientationLandscapeRight) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+// ===== 修正快照内容 =====
+static void fixSnapshotContent(UIView *view) {
+    if (!TweakActive() || !IsLandscape()) return;
+    
+    Class snapshotClass = NSClassFromString(@"SBAppSwitcherSnapshotView");
+    if (snapshotClass && [view isKindOfClass:snapshotClass]) {
+        // 获取应用标识符
+        NSString *bundleID = nil;
+        if ([view respondsToSelector:@selector(appLayout)]) {
+            id appLayout = [view performSelector:@selector(appLayout)];
+            if (appLayout && [appLayout respondsToSelector:@selector(bundleIdentifier)]) {
+                bundleID = [appLayout performSelector:@selector(bundleIdentifier)];
+            }
+        }
+        
+        // 如果应用不支持横屏，则修正快照方向
+        if (bundleID && !appSupportsLandscape(bundleID)) {
+            // 将快照视图的变换重置为恒等（去除旋转）
+            CGAffineTransform transform = view.transform;
+            if (transform.a != 1.0 || transform.b != 0.0 || transform.c != 0.0 || transform.d != 1.0) {
+                CGAffineTransform identity = CGAffineTransformMakeTranslation(transform.tx, transform.ty);
+                view.transform = identity;
+            }
+            
+            // 旋转图片内容为竖屏（逆时针90度）
+            [view.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull subview, NSUInteger idx, BOOL * _Nonnull stop) {
+                if ([subview isKindOfClass:[UIImageView class]]) {
+                    UIImageView *imageView = (UIImageView *)subview;
+                    UIImage *image = imageView.image;
+                    if (image && image.size.width > image.size.height) { // 横屏图片
+                        // 旋转为竖屏
+                        UIGraphicsBeginImageContextWithOptions(CGSizeMake(image.size.height, image.size.width), NO, image.scale);
+                        CGContextRef context = UIGraphicsGetCurrentContext();
+                        CGContextTranslateCTM(context, image.size.height, 0);
+                        CGContextRotateCTM(context, -M_PI_2);
+                        [image drawInRect:CGRectMake(0, 0, image.size.width, image.size.height)];
+                        UIImage *rotatedImage = UIGraphicsGetImageFromCurrentImageContext();
+                        UIGraphicsEndImageContext();
+                        imageView.image = rotatedImage;
+                    }
+                }
+            }];
+        }
+        return;
+    }
+    
+    // 递归子视图
+    [view.subviews enumerateObjectsUsingBlock:^(__kindof UIView * _Nonnull subview, NSUInteger idx, BOOL * _Nonnull stop) {
+        fixSnapshotContent(subview);
+    }];
+}
+
 %hook SBAppSwitcherSettings
 
 - (long long)switcherStyle {
     if(TweakActive()) {
-        return 2;  // iPad 网格
+        return 2;
     }
     return %orig;
 }
@@ -153,9 +224,17 @@ void ReloadPrefs(void) {
     return %orig;
 }
 
+- (void)layoutSubviews {
+    %orig;
+    if (TweakActive() && IsLandscape()) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            fixSnapshotContent((UIView *)self);
+        });
+    }
+}
+
 %end
 
-// 伪装 iPad（只在加载切换器时）
 %hook UIDevice
 
 - (long long)userInterfaceIdiom {
@@ -174,6 +253,15 @@ void ReloadPrefs(void) {
         return YES;
     }
     return %orig;
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    %orig;
+    if (TweakActive() && IsLandscape()) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            fixSnapshotContent([(UIViewController *)self view]);
+        });
+    }
 }
 
 %end
