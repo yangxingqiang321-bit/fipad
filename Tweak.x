@@ -5,303 +5,224 @@ NSString *const domainString = @"com.schlub51.fipad";
 NSString *const killSwitchPath = @"/var/mobile/fipad.disable";
 
 static BOOL isEnabled;
+static BOOL spoofPadIdiomDuringSwitcherLoad;
 static double cardScale;
 static double cornerRadius;
-
 static double vertSpacingPort;
 static double horizSpacingPort;
 static double vertSpacingLand;
 static double horizSpacingLand;
 
-
-static BOOL KillSwitchActive(void)
-{
-    return [[NSFileManager defaultManager]
-            fileExistsAtPath:killSwitchPath];
+static BOOL IsLandscape(void) {
+    CGSize size = [UIScreen mainScreen].bounds.size;
+    return size.width > size.height;
 }
 
+static BOOL KillSwitchActive(void) {
+    return [[NSFileManager defaultManager] fileExistsAtPath:killSwitchPath];
+}
 
-static BOOL TweakActive(void)
-{
+static BOOL TweakActive(void) {
     return isEnabled && !KillSwitchActive();
 }
 
-
-
-static BOOL IsLandscape(void)
-{
-    UIInterfaceOrientation orientation =
-    [UIApplication sharedApplication].statusBarOrientation;
-
-    return orientation == UIInterfaceOrientationLandscapeLeft ||
-           orientation == UIInterfaceOrientationLandscapeRight;
+static double SettingsScaledAppExposeValue(double native) {
+    if(!TweakActive()) {
+        return native;
+    }
+    double scale = cardScale / 0.30;
+    // 横屏时不再强制缩小，让系统原生处理
+    return native * scale;
 }
 
-
-
-static double SpacingMultiplier(BOOL vertical)
-{
-    double value;
-
-    if(IsLandscape())
-    {
-        value = vertical ? vertSpacingLand : horizSpacingLand;
-    }
-    else
-    {
-        value = vertical ? vertSpacingPort : horizSpacingPort;
-    }
-
-
-    if(value <= 0)
+static double SpacingMultiplier(BOOL vertical) {
+    double value = vertical ? vertSpacingPort : horizSpacingPort;
+    if(value <= 0.0) {
         return 1.0;
-
-
+    }
     return value / 50.0;
 }
 
-
-
-static double ScaleValue(double native)
-{
-    if(!TweakActive())
-        return native;
-
-
-    return native * (cardScale / 0.30);
+static double NormalizedSpacingPref(NSUserDefaults *prefs,
+                                    NSString *key,
+                                    double fallback,
+                                    double legacyDefault) {
+    id object = [prefs objectForKey:key];
+    if(!object) {
+        return fallback;
+    }
+    double value = [object doubleValue];
+    if(fabs(value - legacyDefault) < 0.01) {
+        return fallback;
+    }
+    return value;
 }
 
-
-
-static double ReadSpacing(NSUserDefaults *prefs,
-                          NSString *key,
-                          double def)
-{
-    id obj = [prefs objectForKey:key];
-
-    if(!obj)
-        return def;
-
-
-    return [obj doubleValue];
-}
-
-
-
-static void ReloadPrefs(void)
-{
+void ReloadPrefs(void) {
     NSUserDefaults *prefs =
-    [[NSUserDefaults alloc]
-     initWithSuiteName:domainString];
-
+    [[NSUserDefaults alloc] initWithSuiteName:domainString];
 
     isEnabled =
-    [[prefs objectForKey:@"isEnabled"]
-     ?: @(YES) boolValue];
-
+    [([prefs objectForKey:@"isEnabled"] ?: @(YES)) boolValue];
 
     cardScale =
-    [[prefs objectForKey:@"cardScale"]
-     ?: @(0.38) doubleValue];
-
+    [([prefs objectForKey:@"cardScale"] ?: @(0.38)) doubleValue];
 
     cornerRadius =
-    [[prefs objectForKey:@"cornerRadius"]
-     ?: @(10) doubleValue];
-
+    [([prefs objectForKey:@"cornerRadius"] ?: @(10)) doubleValue];
 
     vertSpacingPort =
-    ReadSpacing(prefs,
-                @"vertSpacingPort",
-                50);
-
+    NormalizedSpacingPref(prefs,
+                          @"vertSpacingPort",
+                          50.0,
+                          42.0);
 
     horizSpacingPort =
-    ReadSpacing(prefs,
-                @"horizSpacingPort",
-                50);
-
+    NormalizedSpacingPref(prefs,
+                          @"horizSpacingPort",
+                          50.0,
+                          25.5);
 
     vertSpacingLand =
-    ReadSpacing(prefs,
-                @"vertSpacingLand",
-                50);
-
+    NormalizedSpacingPref(prefs,
+                          @"vertSpacingLand",
+                          50.0,
+                          38.0);
 
     horizSpacingLand =
-    ReadSpacing(prefs,
-                @"horizSpacingLand",
-                50);
+    NormalizedSpacingPref(prefs,
+                          @"horizSpacingLand",
+                          50.0,
+                          11.6);
 }
-
-
-
-
-
-#pragma mark - iPad Grid Switcher
-
 
 %hook SBAppSwitcherSettings
 
-
-// 永远启用 iPad 网格
-- (long long)switcherStyle
-{
-    if(TweakActive())
-    {
-        return 2;
+- (long long)switcherStyle {
+    // 竖屏启用网格，横屏回到原生
+    if(TweakActive() && !IsLandscape()) {
+        return 2;  // iPad 网格
     }
-
     return %orig;
 }
 
-
-
-- (double)appExposeNonFloatingSingleRowScale
-{
-    return ScaleValue(%orig);
+- (double)appExposeNonFloatingSingleRowScale {
+    double orig = %orig;
+    return SettingsScaledAppExposeValue(orig);
 }
 
-
-
-- (double)appExposeNonFloatingDoubleRowScale
-{
-    return ScaleValue(%orig);
+- (double)appExposeNonFloatingDoubleRowScale {
+    double orig = %orig;
+    return SettingsScaledAppExposeValue(orig);
 }
 
-
-
-- (double)appExposeFloatingDoubleRowScale
-{
-    return ScaleValue(%orig);
+- (double)appExposeFloatingDoubleRowScale {
+    double orig = %orig;
+    return SettingsScaledAppExposeValue(orig);
 }
 
-
-
-
-- (double)gridSwitcherHorizontalInterpageSpacingPortrait
-{
+- (double)gridSwitcherHorizontalInterpageSpacingPortrait {
     double value = %orig;
-
-    if(TweakActive())
+    if(TweakActive()) {
         value *= SpacingMultiplier(NO);
-
+    }
     return value;
 }
 
-
-
-- (double)gridSwitcherVerticalNaturalSpacingPortrait
-{
+- (double)gridSwitcherVerticalNaturalSpacingPortrait {
     double value = %orig;
-
-    if(TweakActive())
+    if(TweakActive()) {
         value *= SpacingMultiplier(YES);
-
+    }
     return value;
 }
 
-
-
-- (double)gridSwitcherHorizontalInterpageSpacingLandscape
-{
+- (double)gridSwitcherHorizontalInterpageSpacingLandscape {
     double value = %orig;
-
-    if(TweakActive())
+    if(TweakActive()) {
         value *= SpacingMultiplier(NO);
-
+    }
     return value;
 }
 
-
-
-- (double)gridSwitcherVerticalNaturalSpacingLandscape
-{
+- (double)gridSwitcherVerticalNaturalSpacingLandscape {
     double value = %orig;
-
-    if(TweakActive())
+    if(TweakActive()) {
         value *= SpacingMultiplier(YES);
-
+    }
     return value;
 }
 
-
+- (double)spacingBetweenLeadingEdgeAndIcon {
+    double value = %orig;
+    if(TweakActive()) {
+        return MIN(value, 8.0);
+    }
+    return value;
+}
 
 %end
-
-
-
-
-
-#pragma mark - Corner
-
 
 %hook SBMixedGridSwitcherModifier
 
-
-- (double)_cardCornerRadiusInSwitcher
-{
-    if(TweakActive())
+- (double)_cardCornerRadiusInSwitcher {
+    if(TweakActive()) {
         return cornerRadius;
-
-
+    }
     return %orig;
 }
 
-
 %end
 
+// 必要的伪装，仅在竖屏且启用时有效
+%hook UIDevice
 
-
-
-
-#pragma mark - 保留App自己的方向
-
-
-%hook SBApplication
-
-
-- (BOOL)supportsInterfaceOrientation:(long long)orientation
-{
+- (long long)userInterfaceIdiom {
+    if(TweakActive() && spoofPadIdiomDuringSwitcherLoad && !IsLandscape()) {
+        return 1;  // 伪装为 iPad
+    }
     return %orig;
 }
 
-
 %end
-
-
-
-
-
-#pragma mark - 不伪装iPad
-
 
 %hook SBFluidSwitcherViewController
 
-
-- (BOOL)isDevicePad
-{
+- (BOOL)isDevicePad {
+    if(TweakActive() && !IsLandscape()) {
+        return YES;
+    }
     return %orig;
 }
 
+%end
+
+%hook SBMainSwitcherControllerCoordinator
+
+- (void)_loadContentViewControllerIfNecessaryForWindowScene:(id)windowScene {
+    if(!TweakActive()) {
+        %orig(windowScene);
+        return;
+    }
+
+    // 只在竖屏时启用伪装
+    if(!IsLandscape()) {
+        spoofPadIdiomDuringSwitcherLoad = YES;
+        %orig(windowScene);
+        spoofPadIdiomDuringSwitcherLoad = NO;
+    } else {
+        %orig(windowScene);
+    }
+}
 
 %end
 
-
-
-
-
-
-%ctor
-{
-
-    if(KillSwitchActive())
+%ctor {
+    if(KillSwitchActive()) {
         return;
-
+    }
 
     ReloadPrefs();
-
-
 
     CFNotificationCenterAddObserver(
         CFNotificationCenterGetDarwinNotifyCenter(),
@@ -311,8 +232,6 @@ static void ReloadPrefs(void)
         NULL,
         CFNotificationSuspensionBehaviorDeliverImmediately
     );
-
-
 
     %init;
 }
