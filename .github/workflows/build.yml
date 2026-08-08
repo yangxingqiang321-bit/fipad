@@ -6,8 +6,7 @@ on:
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
-
-jobs:
+^_^bs:
   build:
     runs-on: macos-latest
     steps:
