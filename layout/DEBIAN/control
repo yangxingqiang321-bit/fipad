@@ -1,4 +1,4 @@
-Package: com.schlub51.fipad
+Package: com.dgr.fipad
 Name: fipad
 Version: 1.0.0
 Architecture: iphoneos-arm64
