@@ -106,9 +106,18 @@ void ReloadPrefs(void) {
     if(TweakActive()) return 2;
     return %orig;
 }
-- (double)appExposeNonFloatingSingleRowScale { return SettingsScaledAppExposeValue(%orig); }
-- (double)appExposeNonFloatingDoubleRowScale { return SettingsScaledAppExposeValue(%orig); }
-- (double)appExposeFloatingDoubleRowScale { return SettingsScaledAppExposeValue(%orig); }
+- (double)appExposeNonFloatingSingleRowScale {
+    double orig = %orig;
+    return SettingsScaledAppExposeValue(orig);
+}
+- (double)appExposeNonFloatingDoubleRowScale {
+    double orig = %orig;
+    return SettingsScaledAppExposeValue(orig);
+}
+- (double)appExposeFloatingDoubleRowScale {
+    double orig = %orig;
+    return SettingsScaledAppExposeValue(orig);
+}
 - (double)gridSwitcherHorizontalInterpageSpacingPortrait {
     double value = %orig;
     if(TweakActive()) value *= SpacingMultiplier(NO);
