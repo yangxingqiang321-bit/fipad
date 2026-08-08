@@ -4,6 +4,14 @@
 <dict>
 	<key>items</key>
 	<array>
+		<!-- ===== 新增：图片横幅 ===== -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>headerView</key>
+			<string>banner</string>
+		</dict>
+		<!-- ===== 原有内容 ===== -->
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
