@@ -7,3 +7,6 @@ Maintainer: dgr
 Author: dgr
 Section: Tweaks
 Depends: firmware (>= 16.0), mobilesubstrate (>= 0.9.5000)
+Provides: com.dgr.fipad
+Replaces: com.dgr.fipad
+Conflicts: com.dgr.fipad
