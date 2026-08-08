@@ -1,15 +1,16 @@
 TARGET := iphone:clang:16.5:15.0
-INSTALL_TARGET_PROCESSES = SpringBoard
 ARCHS = arm64 arm64e
-THEOS_PACKAGE_SCHEME = rootless
-
 include $(THEOS)/makefiles/common.mk
 
-TWEAK_NAME = fipad
-fipad_FILES = Tweak.x
-fipad_CFLAGS = -fobjc-arc
+BUNDLE_NAME = fipadSettings
+fipadSettings_FILES = ipsRootListController.m
+fipadSettings_FRAMEWORKS = UIKit
+fipadSettings_PRIVATE_FRAMEWORKS = Preferences
+fipadSettings_INSTALL_PATH = /Library/PreferenceBundles
+fipadSettings_CFLAGS = -fobjc-arc
 
-SUBPROJECTS += fipadsettings
+include $(THEOS_MAKE_PATH)/bundle.mk
 
-include $(THEOS)/makefiles/tweak.mk
-include $(THEOS)/makefiles/aggregate.mk
+internal-stage::
+	$(ECHO_NOTHING)mkdir -p $(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences$(ECHO_END)
+	$(ECHO_NOTHING)cp entry.plist $(THEOS_STAGING_DIR)/Library/PreferenceLoader/Preferences/fipad.plist$(ECHO_END)
