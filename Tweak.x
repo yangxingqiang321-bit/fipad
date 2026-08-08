@@ -71,27 +71,12 @@ void ReloadPrefs(void) {
 // ===== 切换器加载时启用伪装 =====
 %hook SBMainSwitcherControllerCoordinator
 - (void)_loadContentViewControllerIfNecessaryForWindowScene:(id)windowScene {
-    if(!TweakActive()) { %orig(windowScene); return; }
+    if(!TweakActive()) { 
+        %orig(windowScene); 
+        return; 
+    }
     forcePadIdiom++;
     %orig(windowScene);
-    forcePadIdiom--;
-}
-%end
-
-%hook SBFullScreenSwitcherLiveContentOverlayCoordinator
-- (void)layoutStateTransitionCoordinator:(id)arg1 transitionDidBeginWithTransitionContext:(id)arg2 {
-    if(!TweakActive()) { %orig; return; }
-    forcePadIdiom++;
-    %orig;
-    forcePadIdiom--;
-}
-%end
-
-%hook SBSwitcherController
-- (void)_updateContentViewControllerIfNeeded {
-    if(!TweakActive()) { %orig; return; }
-    forcePadIdiom++;
-    %orig;
     forcePadIdiom--;
 }
 %end
@@ -183,19 +168,6 @@ void ReloadPrefs(void) {
 - (BOOL)isDevicePad {
     if(TweakActive()) return YES;
     return %orig;
-}
-%end
-
-// ===== 额外修复方向问题 =====
-%hook SBTraitsSceneParticipantDelegate
-- (BOOL)_isAllowedToHavePortraitUpsideDown {
-    return YES;
-}
-- (NSInteger)_orientationMode {
-    forcePadIdiom++;
-    NSInteger result = %orig;
-    forcePadIdiom--;
-    return result;
 }
 %end
 
