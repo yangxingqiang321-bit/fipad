@@ -3,7 +3,7 @@ Name: fipad
 Version: 1.0.0
 Architecture: iphoneos-arm64
 Description: 仿ipad可调节后台！
-Maintainer: schlub51
-Author: schlub51
+Maintainer: dgr
+Author: dgr
 Section: Tweaks
 Depends: firmware (>= 16.0), mobilesubstrate (>= 0.9.5000)
