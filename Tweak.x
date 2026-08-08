@@ -144,7 +144,7 @@ void ReloadPrefs(void) {
 }
 %end
 
-// ===== 必要支持 =====
+// ===== 必要支持（不产生额外 UI）=====
 %hook SBPlatformController
 - (NSInteger)medusaCapabilities {
     if(TweakActive()) return 2;
@@ -174,6 +174,19 @@ void ReloadPrefs(void) {
 - (BOOL)isDevicePad {
     if(TweakActive()) return YES;
     return %orig;
+}
+%end
+
+// ===== 额外修复方向问题 =====
+%hook SBTraitsSceneParticipantDelegate
+- (BOOL)_isAllowedToHavePortraitUpsideDown {
+    return YES;
+}
+- (NSInteger)_orientationMode {
+    forcePadIdiom++;
+    NSInteger result = %orig;
+    forcePadIdiom--;
+    return result;
 }
 %end
 
