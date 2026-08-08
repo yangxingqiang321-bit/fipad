@@ -1,6 +1,5 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#import <dlfcn.h>
 
 NSString *const domainString = @"com.schlub51.fipad";
 NSString *const killSwitchPath = @"/var/mobile/fipad.disable";
@@ -14,7 +13,6 @@ static double horizSpacingPort;
 static double vertSpacingLand;
 static double horizSpacingLand;
 
-// ===== TrollPad 核心：forcePadIdiom 计数器 =====
 static uint16_t forcePadIdiom = 0;
 
 static BOOL IsLandscape(void) {
@@ -31,40 +29,22 @@ static BOOL TweakActive(void) {
 }
 
 static double SettingsScaledAppExposeValue(double native) {
-    if(!TweakActive()) {
-        return native;
-    }
-    double scale;
-    if (IsLandscape()) {
-        scale = (cardScaleLandscape > 0) ? cardScaleLandscape / 0.30 : cardScale / 0.30;
-    } else {
-        scale = cardScale / 0.30;
-    }
+    if(!TweakActive()) return native;
+    double scale = IsLandscape() && cardScaleLandscape > 0 ? cardScaleLandscape / 0.30 : cardScale / 0.30;
     return native * scale;
 }
 
 static double SpacingMultiplier(BOOL vertical) {
-    double value;
-    if (IsLandscape()) {
-        value = vertical ? vertSpacingLand : horizSpacingLand;
-    } else {
-        value = vertical ? vertSpacingPort : horizSpacingPort;
-    }
-    if(value <= 0.0) {
-        return 1.0;
-    }
+    double value = IsLandscape() ? (vertical ? vertSpacingLand : horizSpacingLand) : (vertical ? vertSpacingPort : horizSpacingPort);
+    if(value <= 0.0) return 1.0;
     return value / 50.0;
 }
 
 static double NormalizedSpacingPref(NSUserDefaults *prefs, NSString *key, double fallback, double legacyDefault) {
     id object = [prefs objectForKey:key];
-    if(!object) {
-        return fallback;
-    }
+    if(!object) return fallback;
     double value = [object doubleValue];
-    if(fabs(value - legacyDefault) < 0.01) {
-        return fallback;
-    }
+    if(fabs(value - legacyDefault) < 0.01) return fallback;
     return value;
 }
 
@@ -80,31 +60,18 @@ void ReloadPrefs(void) {
     horizSpacingLand = NormalizedSpacingPref(prefs, @"horizSpacingLand", 50.0, 11.6);
 }
 
-// ===== TrollPad 核心：MGGetBoolAnswer Hook =====
-BOOL MGGetBoolAnswer(NSString* property);
-%hookf(BOOL, MGGetBoolAnswer, NSString* property) {
-    if ([property isEqualToString:@"DeviceSupportsEnhancedMultitasking"]) {
-        return YES;
-    }
-    return %orig;
-}
-
-// ===== 临时伪装 iPad（仅在切换器加载期间）=====
+// ===== 临时伪装 iPad =====
 %hook UIDevice
 - (UIUserInterfaceIdiom)userInterfaceIdiom {
-    if (forcePadIdiom > 0) {
-        return UIUserInterfaceIdiomPad;
-    }
+    if (forcePadIdiom > 0) return UIUserInterfaceIdiomPad;
     return %orig;
 }
 %end
 
+// ===== 切换器加载时启用伪装 =====
 %hook SBMainSwitcherControllerCoordinator
 - (void)_loadContentViewControllerIfNecessaryForWindowScene:(id)windowScene {
-    if(!TweakActive()) {
-        %orig(windowScene);
-        return;
-    }
+    if(!TweakActive()) { %orig(windowScene); return; }
     forcePadIdiom++;
     %orig(windowScene);
     forcePadIdiom--;
@@ -113,10 +80,7 @@ BOOL MGGetBoolAnswer(NSString* property);
 
 %hook SBFullScreenSwitcherLiveContentOverlayCoordinator
 - (void)layoutStateTransitionCoordinator:(id)arg1 transitionDidBeginWithTransitionContext:(id)arg2 {
-    if(!TweakActive()) {
-        %orig;
-        return;
-    }
+    if(!TweakActive()) { %orig; return; }
     forcePadIdiom++;
     %orig;
     forcePadIdiom--;
@@ -125,118 +89,49 @@ BOOL MGGetBoolAnswer(NSString* property);
 
 %hook SBSwitcherController
 - (void)_updateContentViewControllerIfNeeded {
-    if(!TweakActive()) {
-        %orig;
-        return;
-    }
+    if(!TweakActive()) { %orig; return; }
     forcePadIdiom++;
     %orig;
     forcePadIdiom--;
 }
 %end
 
-// ===== 额外：确保 iPad 多任务能力 =====
-%hook SBApplication
-- (BOOL)isMedusaCapable {
-    if(TweakActive()) {
-        return YES;
-    }
-    return %orig;
-}
-- (BOOL)_supportsApplicationType:(int)arg1 {
-    if(TweakActive()) {
-        return YES;
-    }
-    return %orig;
-}
-%end
-
-%hook SBPlatformController
-- (NSInteger)medusaCapabilities {
-    if(TweakActive()) {
-        return 2;
-    }
-    return %orig;
-}
-%end
-
-%hook SBMainWorkspace
-- (BOOL)isMedusaEnabled {
-    if(TweakActive()) {
-        return YES;
-    }
-    return %orig;
-}
-%end
-
-// ===== 强制 iPad 网格样式 =====
+// ===== 强制网格样式 =====
 %hook SBAppSwitcherSettings
 - (NSInteger)effectiveSwitcherStyle {
-    if(TweakActive()) {
-        return 2;
-    }
+    if(TweakActive()) return 2;
     return %orig;
 }
-
 - (long long)switcherStyle {
-    if(TweakActive()) {
-        return 2;
-    }
+    if(TweakActive()) return 2;
     return %orig;
 }
-
-- (double)appExposeNonFloatingSingleRowScale {
-    double orig = %orig;
-    return SettingsScaledAppExposeValue(orig);
-}
-
-- (double)appExposeNonFloatingDoubleRowScale {
-    double orig = %orig;
-    return SettingsScaledAppExposeValue(orig);
-}
-
-- (double)appExposeFloatingDoubleRowScale {
-    double orig = %orig;
-    return SettingsScaledAppExposeValue(orig);
-}
-
+- (double)appExposeNonFloatingSingleRowScale { return SettingsScaledAppExposeValue(%orig); }
+- (double)appExposeNonFloatingDoubleRowScale { return SettingsScaledAppExposeValue(%orig); }
+- (double)appExposeFloatingDoubleRowScale { return SettingsScaledAppExposeValue(%orig); }
 - (double)gridSwitcherHorizontalInterpageSpacingPortrait {
     double value = %orig;
-    if(TweakActive()) {
-        value *= SpacingMultiplier(NO);
-    }
+    if(TweakActive()) value *= SpacingMultiplier(NO);
     return value;
 }
-
 - (double)gridSwitcherVerticalNaturalSpacingPortrait {
     double value = %orig;
-    if(TweakActive()) {
-        value *= SpacingMultiplier(YES);
-    }
+    if(TweakActive()) value *= SpacingMultiplier(YES);
     return value;
 }
-
 - (double)gridSwitcherHorizontalInterpageSpacingLandscape {
     double value = %orig;
-    if(TweakActive()) {
-        value *= SpacingMultiplier(NO);
-    }
+    if(TweakActive()) value *= SpacingMultiplier(NO);
     return value;
 }
-
 - (double)gridSwitcherVerticalNaturalSpacingLandscape {
     double value = %orig;
-    if(TweakActive()) {
-        value *= SpacingMultiplier(YES);
-    }
+    if(TweakActive()) value *= SpacingMultiplier(YES);
     return value;
 }
-
 - (double)spacingBetweenLeadingEdgeAndIcon {
     double value = %orig;
-    if(TweakActive()) {
-        return MIN(value, 8.0);
-    }
+    if(TweakActive()) return MIN(value, 8.0);
     return value;
 }
 %end
@@ -244,37 +139,52 @@ BOOL MGGetBoolAnswer(NSString* property);
 // ===== 卡片圆角 =====
 %hook SBMixedGridSwitcherModifier
 - (double)_cardCornerRadiusInSwitcher {
-    if(TweakActive()) {
-        return cornerRadius;
-    }
+    if(TweakActive()) return cornerRadius;
+    return %orig;
+}
+%end
+
+// ===== 必要支持 =====
+%hook SBPlatformController
+- (NSInteger)medusaCapabilities {
+    if(TweakActive()) return 2;
+    return %orig;
+}
+%end
+
+%hook SBApplication
+- (BOOL)isMedusaCapable {
+    if(TweakActive()) return YES;
+    return %orig;
+}
+- (BOOL)_supportsApplicationType:(int)arg1 {
+    if(TweakActive()) return YES;
+    return %orig;
+}
+%end
+
+%hook SBMainWorkspace
+- (BOOL)isMedusaEnabled {
+    if(TweakActive()) return YES;
     return %orig;
 }
 %end
 
 %hook SBFluidSwitcherViewController
 - (BOOL)isDevicePad {
-    if(TweakActive()) {
-        return YES;
-    }
+    if(TweakActive()) return YES;
     return %orig;
 }
 %end
 
 %ctor {
-    if(KillSwitchActive()) {
-        return;
-    }
-
+    if(KillSwitchActive()) return;
     ReloadPrefs();
-
     CFNotificationCenterAddObserver(
-        CFNotificationCenterGetDarwinNotifyCenter(),
-        NULL,
+        CFNotificationCenterGetDarwinNotifyCenter(), NULL,
         (CFNotificationCallback)ReloadPrefs,
-        CFSTR("com.schlub51.fipad.changed"),
-        NULL,
+        CFSTR("com.schlub51.fipad.changed"), NULL,
         CFNotificationSuspensionBehaviorDeliverImmediately
     );
-
     %init;
 }
