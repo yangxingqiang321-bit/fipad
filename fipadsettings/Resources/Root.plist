@@ -36,7 +36,7 @@
 			<key>default</key>
 			<string>0.38</string>
 			<key>min</key>
-			<string>0.30</string>
+			<string>0.20</string>
 			<key>max</key>
 			<string>0.50</string>
 			<key>showValue</key>
@@ -46,7 +46,29 @@
 			<key>key</key>
 			<string>cardScale</string>
 			<key>label</key>
-			<string>缩放比例</string>
+			<string>竖屏缩放</string>
+			<key>isSegmented</key>
+			<false/>
+			<key>PostNotification</key>
+			<string>com.schlub51.fipad.changed</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<string>0.34</string>
+			<key>min</key>
+			<string>0.20</string>
+			<key>max</key>
+			<string>0.50</string>
+			<key>showValue</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.schlub51.fipad</string>
+			<key>key</key>
+			<string>cardScaleLandscape</string>
+			<key>label</key>
+			<string>横屏缩放</string>
 			<key>isSegmented</key>
 			<false/>
 			<key>PostNotification</key>
