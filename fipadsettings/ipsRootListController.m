@@ -23,48 +23,54 @@ NSString *const domainString = @"com.schlub51.fipad";
 }
 
 - (void)setupCustomUI {
-    UIScrollView *scrollView = [[UIScrollView alloc] initWithFrame:self.view.bounds];
+    CGFloat width = self.view.bounds.size.width;
+    CGFloat height = self.view.bounds.size.height;
+    
+    UIScrollView *scrollView = [[UIScrollView alloc] initWithFrame:CGRectMake(0, 0, width, height)];
     scrollView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentAutomatic;
     [self.view addSubview:scrollView];
     
     UIView *contentView = [[UIView alloc] init];
     [scrollView addSubview:contentView];
     
     CGFloat y = 20;
-    CGFloat width = self.view.bounds.size.width;
+    CGFloat margin = 20;
+    CGFloat contentWidth = width - margin * 2;
     
-    y = [self addSectionLabel:@"竖屏设置" atY:y toView:contentView width:width];
-    y = [self addSliderWithStepper:@"卡片缩放" key:@"cardScale" min:0.20 max:0.50 step:0.01 atY:y toView:contentView width:width];
-    y = [self addSliderWithStepper:@"垂直间距" key:@"vertSpacingPort" min:10 max:120 step:1 atY:y toView:contentView width:width];
-    y = [self addSliderWithStepper:@"水平间距" key:@"horizSpacingPort" min:10 max:120 step:1 atY:y toView:contentView width:width];
-    
-    y += 10;
-    y = [self addSectionLabel:@"横屏设置" atY:y toView:contentView width:width];
-    y = [self addSliderWithStepper:@"卡片缩放" key:@"cardScaleLandscape" min:0.20 max:0.50 step:0.01 atY:y toView:contentView width:width];
-    y = [self addSliderWithStepper:@"垂直间距" key:@"vertSpacingLand" min:10 max:120 step:1 atY:y toView:contentView width:width];
-    y = [self addSliderWithStepper:@"水平间距" key:@"horizSpacingLand" min:10 max:120 step:1 atY:y toView:contentView width:width];
+    y = [self addSectionLabel:@"竖屏设置" atY:y toView:contentView width:contentWidth];
+    y = [self addSliderWithStepper:@"卡片缩放" key:@"cardScale" min:0.20 max:0.50 step:0.01 atY:y toView:contentView width:contentWidth];
+    y = [self addSliderWithStepper:@"垂直间距" key:@"vertSpacingPort" min:10 max:120 step:1 atY:y toView:contentView width:contentWidth];
+    y = [self addSliderWithStepper:@"水平间距" key:@"horizSpacingPort" min:10 max:120 step:1 atY:y toView:contentView width:contentWidth];
     
     y += 10;
-    y = [self addSectionLabel:@"卡片圆角" atY:y toView:contentView width:width];
-    y = [self addSliderWithStepper:@"圆角半径" key:@"cornerRadius" min:0 max:40 step:1 atY:y toView:contentView width:width];
+    y = [self addSectionLabel:@"横屏设置" atY:y toView:contentView width:contentWidth];
+    y = [self addSliderWithStepper:@"卡片缩放" key:@"cardScaleLandscape" min:0.20 max:0.50 step:0.01 atY:y toView:contentView width:contentWidth];
+    y = [self addSliderWithStepper:@"垂直间距" key:@"vertSpacingLand" min:10 max:120 step:1 atY:y toView:contentView width:contentWidth];
+    y = [self addSliderWithStepper:@"水平间距" key:@"horizSpacingLand" min:10 max:120 step:1 atY:y toView:contentView width:contentWidth];
+    
+    y += 10;
+    y = [self addSectionLabel:@"卡片圆角" atY:y toView:contentView width:contentWidth];
+    y = [self addSliderWithStepper:@"圆角半径" key:@"cornerRadius" min:0 max:40 step:1 atY:y toView:contentView width:contentWidth];
     
     y += 30;
     UIButton *applyBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-    applyBtn.frame = CGRectMake(40, y, width - 80, 44);
+    applyBtn.frame = CGRectMake(0, y, contentWidth, 44);
     [applyBtn setTitle:@"应用更改" forState:UIControlStateNormal];
     applyBtn.backgroundColor = [UIColor systemBlueColor];
     applyBtn.layer.cornerRadius = 10;
     [applyBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    applyBtn.titleLabel.font = [UIFont boldSystemFontOfSize:16];
     [applyBtn addTarget:self action:@selector(sbreload) forControlEvents:UIControlEventTouchUpInside];
     [contentView addSubview:applyBtn];
     y += 60;
     
-    contentView.frame = CGRectMake(0, 0, width, y);
-    scrollView.contentSize = contentView.frame.size;
+    contentView.frame = CGRectMake(margin, 0, contentWidth, y);
+    scrollView.contentSize = CGSizeMake(contentWidth, y + 40);
 }
 
 - (CGFloat)addSectionLabel:(NSString *)text atY:(CGFloat)y toView:(UIView *)view width:(CGFloat)width {
-    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(20, y, width - 40, 30)];
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(0, y, width, 30)];
     label.text = text;
     label.font = [UIFont boldSystemFontOfSize:16];
     label.textColor = [UIColor systemGrayColor];
@@ -80,7 +86,8 @@ NSString *const domainString = @"com.schlub51.fipad";
                              atY:(CGFloat)y
                           toView:(UIView *)view
                            width:(CGFloat)width {
-    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(20, y, 80, 30)];
+    // 标签
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(0, y, 85, 30)];
     label.text = labelText;
     label.font = [UIFont systemFontOfSize:14];
     [view addSubview:label];
@@ -89,8 +96,9 @@ NSString *const domainString = @"com.schlub51.fipad";
     CGFloat currentValue = [defaults floatForKey:key];
     if (currentValue == 0) currentValue = (min + max) / 2;
     
-    CGFloat sliderX = 100;
-    CGFloat sliderWidth = width - sliderX - 80 - 20 - 10;
+    // 滑块
+    CGFloat sliderX = 90;
+    CGFloat sliderWidth = width - sliderX - 70 - 10 - 5;
     UISlider *slider = [[UISlider alloc] initWithFrame:CGRectMake(sliderX, y, sliderWidth, 30)];
     slider.minimumValue = min;
     slider.maximumValue = max;
@@ -99,15 +107,16 @@ NSString *const domainString = @"com.schlub51.fipad";
     [slider addTarget:self action:@selector(sliderChanged:) forControlEvents:UIControlEventValueChanged];
     [view addSubview:slider];
     
-    CGFloat valueX = sliderX + sliderWidth + 10;
-    UILabel *valueLabel = [[UILabel alloc] initWithFrame:CGRectMake(valueX, y, 40, 30)];
+    // 数值显示
+    CGFloat valueX = sliderX + sliderWidth + 5;
+    UILabel *valueLabel = [[UILabel alloc] initWithFrame:CGRectMake(valueX, y, 45, 30)];
     valueLabel.text = [NSString stringWithFormat:@"%.2f", currentValue];
     valueLabel.font = [UIFont systemFontOfSize:14];
     valueLabel.textAlignment = NSTextAlignmentCenter;
-    valueLabel.accessibilityLabel = [key stringByAppendingString:@"_value"];
     [view addSubview:valueLabel];
     
-    CGFloat stepperX = valueX + 45;
+    // 步进器
+    CGFloat stepperX = valueX + 50;
     UIStepper *stepper = [[UIStepper alloc] initWithFrame:CGRectMake(stepperX, y, 80, 30)];
     stepper.minimumValue = min;
     stepper.maximumValue = max;
