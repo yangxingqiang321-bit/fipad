@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <AudioToolbox/AudioToolbox.h>  // 震动反馈
 
 NSString *const domainString = @"com.schlub51.fipad";
 NSString *const killSwitchPath = @"/var/mobile/fipad.disable";
@@ -14,7 +15,7 @@ static double horizSpacingPort;
 static double vertSpacingLand;
 static double horizSpacingLand;
 
-// ===== 新增：锁定集合和手势时间 =====
+// ===== 新增功能全局变量 =====
 static NSMutableSet *lockedBundleIDs = nil;
 static NSDate *lastGlobalSwipeTime = nil;
 static NSDate *lastCardSwipeTime = nil;
@@ -82,7 +83,7 @@ void ReloadPrefs(void) {
     horizSpacingLand = NormalizedSpacingPref(prefs, @"horizSpacingLand", 50.0, 11.6);
 }
 
-// ===== 辅助函数：获取 Bundle ID =====
+// ===== 辅助函数 =====
 static NSString* getBundleIDFromContainer(UIView *container) {
     id appLayout = [container valueForKey:@"_appLayout"];
     if (!appLayout) return nil;
@@ -90,7 +91,6 @@ static NSString* getBundleIDFromContainer(UIView *container) {
     return bundleID;
 }
 
-// ===== 关闭单个应用 =====
 static void killAppWithBundleID(NSString *bundleID) {
     if (!bundleID) return;
     Class appController = NSClassFromString(@"SBApplicationController");
@@ -100,7 +100,6 @@ static void killAppWithBundleID(NSString *bundleID) {
     }
 }
 
-// ===== 关闭所有未锁定的应用 =====
 static void killAllUnlockedApps() {
     Class switcherModel = NSClassFromString(@"SBAppSwitcherModel");
     if (!switcherModel) switcherModel = NSClassFromString(@"SBSwitcherModel");
@@ -115,7 +114,6 @@ static void killAllUnlockedApps() {
     }
 }
 
-// ===== 更新锁定图标 =====
 static void updateLockIconForContainer(UIView *container, NSString *bundleID) {
     UIView *existingLock = [container viewWithTag:9999];
     [existingLock removeFromSuperview];
@@ -132,7 +130,7 @@ static void updateLockIconForContainer(UIView *container, NSString *bundleID) {
     }
 }
 
-// ===== TrollPad 核心：forcePadIdiom 计数器 =====
+// ===== TrollPad 核心 =====
 static uint16_t forcePadIdiom = 0;
 
 %hook UIDevice
@@ -284,7 +282,9 @@ static uint16_t forcePadIdiom = 0;
 }
 %end
 
+// ===== 新增功能：一键关闭按钮 + 下滑清后台 + 下滑锁定 =====
 %hook SBFluidSwitcherViewController
+
 - (BOOL)isDevicePad {
     if(TweakActive()) {
         return YES;
@@ -292,20 +292,24 @@ static uint16_t forcePadIdiom = 0;
     return %orig;
 }
 
-// ===== 新增：底部一键关闭按钮 =====
 - (void)viewDidLoad {
     %orig;
     if (TweakActive()) {
+        // 延迟添加按钮，确保视图加载完成
         [self performSelector:@selector(addKillAllButton) withObject:nil afterDelay:0.1];
     }
 }
 
+// 添加底部一键关闭按钮
 - (void)addKillAllButton {
-    if ([self.view viewWithTag:8888]) return;
+    UIViewController *vc = (UIViewController *)self; // 强制转换，让编译器知道有 view
+    UIView *view = vc.view;
+    if ([view viewWithTag:8888]) return;
+    
     UIButton *killBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     killBtn.tag = 8888;
-    killBtn.frame = CGRectMake(self.view.bounds.size.width/2 - 30,
-                               self.view.bounds.size.height - 70,
+    killBtn.frame = CGRectMake(view.bounds.size.width/2 - 30,
+                               view.bounds.size.height - 70,
                                60, 60);
     killBtn.backgroundColor = [UIColor colorWithWhite:0.15 alpha:0.85];
     killBtn.layer.cornerRadius = 30;
@@ -315,28 +319,29 @@ static uint16_t forcePadIdiom = 0;
     [killBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     killBtn.titleLabel.font = [UIFont boldSystemFontOfSize:24];
     [killBtn addTarget:self action:@selector(killAllButtonTapped) forControlEvents:UIControlEventTouchUpInside];
-    [self.view addSubview:killBtn];
+    [view addSubview:killBtn];
 }
 
 - (void)killAllButtonTapped {
     if (TweakActive()) {
         killAllUnlockedApps();
-        // 震动反馈
         AudioServicesPlaySystemSound(1519);
     }
 }
 
 - (void)viewDidLayoutSubviews {
     %orig;
-    UIButton *killBtn = [self.view viewWithTag:8888];
+    UIViewController *vc = (UIViewController *)self;
+    UIView *view = vc.view;
+    UIButton *killBtn = [view viewWithTag:8888];
     if (killBtn) {
-        killBtn.frame = CGRectMake(self.view.bounds.size.width/2 - 30,
-                                   self.view.bounds.size.height - 70,
+        killBtn.frame = CGRectMake(view.bounds.size.width/2 - 30,
+                                   view.bounds.size.height - 70,
                                    60, 60);
     }
 }
 
-// ===== 新增：全局下滑手势（一键清后台） =====
+// 全局下滑手势（一键清后台）
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     if (TweakActive()) {
@@ -345,17 +350,18 @@ static uint16_t forcePadIdiom = 0;
 }
 
 - (void)setupGlobalSwipeGesture {
-    // 检查是否已存在
-    for (UIGestureRecognizer *g in self.view.gestureRecognizers) {
-        if ([g isKindOfClass:[UISwipeGestureRecognizer class]] && 
-            ((UISwipeGestureRecognizer *)g).direction == UISwipeGestureRecognizerDirectionDown &&
-            [g targetForAction:@selector(handleGlobalSwipeDown:)]) {
-            return;
+    UIViewController *vc = (UIViewController *)self;
+    UIView *view = vc.view;
+    // 检查是否已存在下滑手势
+    for (UIGestureRecognizer *g in view.gestureRecognizers) {
+        if ([g isKindOfClass:[UISwipeGestureRecognizer class]] &&
+            ((UISwipeGestureRecognizer *)g).direction == UISwipeGestureRecognizerDirectionDown) {
+            return; // 已存在，避免重复添加
         }
     }
     UISwipeGestureRecognizer *swipe = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(handleGlobalSwipeDown:)];
     swipe.direction = UISwipeGestureRecognizerDirectionDown;
-    [self.view addGestureRecognizer:swipe];
+    [view addGestureRecognizer:swipe];
 }
 
 - (void)handleGlobalSwipeDown:(UISwipeGestureRecognizer *)gesture {
@@ -365,7 +371,7 @@ static uint16_t forcePadIdiom = 0;
             NSTimeInterval interval = [now timeIntervalSinceDate:lastGlobalSwipeTime];
             if (interval < 0.5) {
                 lastGlobalSwipeTime = nil;
-                return; // 连续两次下滑，不触发清后台，交给卡片处理锁定
+                return; // 连续两次下滑，不触发清后台
             }
         }
         lastGlobalSwipeTime = now;
@@ -377,35 +383,39 @@ static uint16_t forcePadIdiom = 0;
 - (void)viewWillDisappear:(BOOL)animated {
     %orig;
     // 清理锁图标
-    for (UIView *subview in self.view.subviews) {
+    UIViewController *vc = (UIViewController *)self;
+    for (UIView *subview in vc.view.subviews) {
         if (subview.tag == 9999) [subview removeFromSuperview];
     }
 }
+
 %end
 
-// ===== 新增：卡片下滑两次锁定 =====
+// ===== 卡片下滑两次锁定 =====
 %hook SBFluidSwitcherItemContainer
 
 - (void)didMoveToWindow {
     %orig;
     if (!TweakActive()) return;
-    if (!self.window) return;
+    UIView *view = (UIView *)self; // 强制类型转换
+    if (!view.window) return;
     // 检查是否已存在下滑手势
-    for (UIGestureRecognizer *g in self.gestureRecognizers) {
-        if ([g isKindOfClass:[UISwipeGestureRecognizer class]] && 
+    for (UIGestureRecognizer *g in view.gestureRecognizers) {
+        if ([g isKindOfClass:[UISwipeGestureRecognizer class]] &&
             ((UISwipeGestureRecognizer *)g).direction == UISwipeGestureRecognizerDirectionDown) {
             return;
         }
     }
     UISwipeGestureRecognizer *swipe = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(handleCardSwipeDown:)];
     swipe.direction = UISwipeGestureRecognizerDirectionDown;
-    [self addGestureRecognizer:swipe];
+    [view addGestureRecognizer:swipe];
 }
 
 - (void)handleCardSwipeDown:(UISwipeGestureRecognizer *)gesture {
     if (gesture.state != UIGestureRecognizerStateEnded || !TweakActive()) return;
     
-    NSString *bundleID = getBundleIDFromContainer(self);
+    UIView *view = (UIView *)self;
+    NSString *bundleID = getBundleIDFromContainer(view);
     if (!bundleID) return;
     
     NSDate *now = [NSDate date];
@@ -419,13 +429,12 @@ static uint16_t forcePadIdiom = 0;
     lastCardSwipeTime = now;
     
     if (isDoubleSwipe) {
-        // 切换锁定状态
         if ([lockedBundleIDs containsObject:bundleID]) {
             [lockedBundleIDs removeObject:bundleID];
         } else {
             [lockedBundleIDs addObject:bundleID];
         }
-        updateLockIconForContainer(self, bundleID);
+        updateLockIconForContainer(view, bundleID);
         AudioServicesPlaySystemSound(1519);
     }
 }
