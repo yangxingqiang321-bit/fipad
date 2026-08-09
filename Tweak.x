@@ -6,7 +6,6 @@ NSString *const domainString = @"com.schlub51.fipad";
 NSString *const killSwitchPath = @"/var/mobile/fipad.disable";
 
 static BOOL isEnabled;
-// static BOOL spoofPadIdiomDuringSwitcherLoad; // 已注释，未使用
 static double cardScale;
 static double cardScaleLandscape;
 static double cornerRadius;
@@ -14,10 +13,6 @@ static double vertSpacingPort;
 static double horizSpacingPort;
 static double vertSpacingLand;
 static double horizSpacingLand;
-
-static NSMutableSet *lockedBundleIDs = nil;
-static NSDate *lastGlobalSwipeTime = nil;
-static NSDate *lastCardSwipeTime = nil;
 
 static BOOL IsLandscape(void) {
     CGSize size = [UIScreen mainScreen].bounds.size;
@@ -82,52 +77,44 @@ void ReloadPrefs(void) {
     horizSpacingLand = NormalizedSpacingPref(prefs, @"horizSpacingLand", 50.0, 11.6);
 }
 
-static NSString* getBundleIDFromContainer(UIView *container) {
-    id appLayout = [container valueForKey:@"_appLayout"];
-    if (!appLayout) return nil;
-    NSString *bundleID = [appLayout valueForKey:@"bundleIdentifier"];
-    return bundleID;
-}
+// ===== 一键清后台功能（基于 QuitAll 安全实现）=====
+static void killAllAppsSafe(void) {
+    Class switcherClass = NSClassFromString(@"SBMainSwitcherViewController");
+    id mainSwitcher = [switcherClass performSelector:@selector(sharedInstance)];
+    if (!mainSwitcher) return;
 
-static void killAppWithBundleID(NSString *bundleID) {
-    if (!bundleID) return;
-    Class appController = NSClassFromString(@"SBApplicationController");
-    id app = [appController performSelector:@selector(applicationWithBundleIdentifier:) withObject:bundleID];
-    if (app && [app respondsToSelector:@selector(kill)]) {
-        [app performSelector:@selector(kill)];
-    }
-}
-
-static void killAllUnlockedApps() {
-    Class switcherModel = NSClassFromString(@"SBAppSwitcherModel");
-    if (!switcherModel) switcherModel = NSClassFromString(@"SBSwitcherModel");
-    id model = [switcherModel performSelector:@selector(sharedInstance)];
-    NSArray *items = [model valueForKey:@"displayItems"];
+    NSArray *items = [mainSwitcher valueForKey:@"recentAppLayouts"];
     if (!items) return;
+
+    Class mediaController = NSClassFromString(@"SBMediaController");
+    id nowPlayingApp = [[mediaController sharedInstance] valueForKey:@"nowPlayingApplication"];
+    NSString *nowPlayingID = [nowPlayingApp valueForKey:@"bundleIdentifier"];
+
     for (id item in items) {
-        NSString *bundleID = [item valueForKey:@"bundleIdentifier"];
-        if (bundleID && ![lockedBundleIDs containsObject:bundleID]) {
-            killAppWithBundleID(bundleID);
+        NSString *bundleID = nil;
+        if (@available(iOS 14.0, *)) {
+            NSArray *allItems = [item valueForKey:@"allItems"];
+            if (allItems.count > 0) {
+                id displayItem = allItems[0];
+                bundleID = [displayItem valueForKey:@"bundleIdentifier"];
+            }
+        } else {
+            NSDictionary *rolesMap = [item valueForKey:@"rolesToLayoutItemsMap"];
+            id displayItem = rolesMap[@1];
+            bundleID = [displayItem valueForKey:@"bundleIdentifier"];
+        }
+
+        if (bundleID && ![bundleID isEqualToString:nowPlayingID]) {
+            if (@available(iOS 14.0, *)) {
+                [mainSwitcher performSelector:@selector(_deleteAppLayoutsMatchingBundleIdentifier:) withObject:bundleID];
+            } else {
+                [mainSwitcher performSelector:@selector(_deleteAppLayout:forReason:) withObject:item withObject:@1];
+            }
         }
     }
 }
 
-static void updateLockIconForContainer(UIView *container, NSString *bundleID) {
-    UIView *existingLock = [container viewWithTag:9999];
-    [existingLock removeFromSuperview];
-    if ([lockedBundleIDs containsObject:bundleID]) {
-        UILabel *lockLabel = [[UILabel alloc] initWithFrame:CGRectMake(10, 10, 28, 28)];
-        lockLabel.tag = 9999;
-        lockLabel.text = @"🔒";
-        lockLabel.font = [UIFont systemFontOfSize:16];
-        lockLabel.backgroundColor = [UIColor colorWithWhite:0 alpha:0.5];
-        lockLabel.layer.cornerRadius = 14;
-        lockLabel.clipsToBounds = YES;
-        lockLabel.textAlignment = NSTextAlignmentCenter;
-        [container addSubview:lockLabel];
-    }
-}
-
+// ===== TrollPad 核心：forcePadIdiom 计数器 =====
 static uint16_t forcePadIdiom = 0;
 
 %hook UIDevice
@@ -279,9 +266,7 @@ static uint16_t forcePadIdiom = 0;
 }
 %end
 
-// ===== 新增功能 =====
 %hook SBFluidSwitcherViewController
-
 - (BOOL)isDevicePad {
     if(TweakActive()) {
         return YES;
@@ -289,6 +274,7 @@ static uint16_t forcePadIdiom = 0;
     return %orig;
 }
 
+// ===== 添加底部一键关闭按钮 =====
 - (void)viewDidLoad {
     %orig;
     if (TweakActive()) {
@@ -300,7 +286,7 @@ static uint16_t forcePadIdiom = 0;
     UIViewController *vc = (UIViewController *)self;
     UIView *view = vc.view;
     if ([view viewWithTag:8888]) return;
-    
+
     UIButton *killBtn = [UIButton buttonWithType:UIButtonTypeSystem];
     killBtn.tag = 8888;
     killBtn.frame = CGRectMake(view.bounds.size.width/2 - 30,
@@ -319,7 +305,7 @@ static uint16_t forcePadIdiom = 0;
 
 - (void)killAllButtonTapped {
     if (TweakActive()) {
-        killAllUnlockedApps();
+        killAllAppsSafe();
         AudioServicesPlaySystemSound(1519);
     }
 }
@@ -335,101 +321,6 @@ static uint16_t forcePadIdiom = 0;
                                    60, 60);
     }
 }
-
-- (void)viewDidAppear:(BOOL)animated {
-    %orig;
-    if (TweakActive()) {
-        [(id)self performSelector:@selector(setupGlobalSwipeGesture)];
-    }
-}
-
-- (void)setupGlobalSwipeGesture {
-    UIViewController *vc = (UIViewController *)self;
-    UIView *view = vc.view;
-    for (UIGestureRecognizer *g in view.gestureRecognizers) {
-        if ([g isKindOfClass:[UISwipeGestureRecognizer class]] &&
-            ((UISwipeGestureRecognizer *)g).direction == UISwipeGestureRecognizerDirectionDown) {
-            return;
-        }
-    }
-    UISwipeGestureRecognizer *swipe = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(handleGlobalSwipeDown:)];
-    swipe.direction = UISwipeGestureRecognizerDirectionDown;
-    [view addGestureRecognizer:swipe];
-}
-
-- (void)handleGlobalSwipeDown:(UISwipeGestureRecognizer *)gesture {
-    if (gesture.state == UIGestureRecognizerStateEnded && TweakActive()) {
-        NSDate *now = [NSDate date];
-        if (lastGlobalSwipeTime) {
-            NSTimeInterval interval = [now timeIntervalSinceDate:lastGlobalSwipeTime];
-            if (interval < 0.5) {
-                lastGlobalSwipeTime = nil;
-                return;
-            }
-        }
-        lastGlobalSwipeTime = now;
-        killAllUnlockedApps();
-        AudioServicesPlaySystemSound(1519);
-    }
-}
-
-- (void)viewWillDisappear:(BOOL)animated {
-    %orig;
-    UIViewController *vc = (UIViewController *)self;
-    for (UIView *subview in vc.view.subviews) {
-        if (subview.tag == 9999) [subview removeFromSuperview];
-    }
-}
-
-%end
-
-// ===== 卡片锁定 =====
-%hook SBFluidSwitcherItemContainer
-
-- (void)didMoveToWindow {
-    %orig;
-    if (!TweakActive()) return;
-    UIView *view = (UIView *)self;
-    if (!view.window) return;
-    for (UIGestureRecognizer *g in view.gestureRecognizers) {
-        if ([g isKindOfClass:[UISwipeGestureRecognizer class]] &&
-            ((UISwipeGestureRecognizer *)g).direction == UISwipeGestureRecognizerDirectionDown) {
-            return;
-        }
-    }
-    UISwipeGestureRecognizer *swipe = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(handleCardSwipeDown:)];
-    swipe.direction = UISwipeGestureRecognizerDirectionDown;
-    [view addGestureRecognizer:swipe];
-}
-
-- (void)handleCardSwipeDown:(UISwipeGestureRecognizer *)gesture {
-    if (gesture.state != UIGestureRecognizerStateEnded || !TweakActive()) return;
-    
-    UIView *view = (UIView *)self;
-    NSString *bundleID = getBundleIDFromContainer(view);
-    if (!bundleID) return;
-    
-    NSDate *now = [NSDate date];
-    BOOL isDoubleSwipe = NO;
-    if (lastCardSwipeTime) {
-        NSTimeInterval interval = [now timeIntervalSinceDate:lastCardSwipeTime];
-        if (interval < 0.5) {
-            isDoubleSwipe = YES;
-        }
-    }
-    lastCardSwipeTime = now;
-    
-    if (isDoubleSwipe) {
-        if ([lockedBundleIDs containsObject:bundleID]) {
-            [lockedBundleIDs removeObject:bundleID];
-        } else {
-            [lockedBundleIDs addObject:bundleID];
-        }
-        updateLockIconForContainer(view, bundleID);
-        AudioServicesPlaySystemSound(1519);
-    }
-}
-
 %end
 
 %ctor {
@@ -437,7 +328,6 @@ static uint16_t forcePadIdiom = 0;
         return;
     }
 
-    lockedBundleIDs = [[NSMutableSet alloc] init];
     ReloadPrefs();
 
     CFNotificationCenterAddObserver(
