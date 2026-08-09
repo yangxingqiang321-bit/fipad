@@ -6,7 +6,7 @@ NSString *const domainString = @"com.schlub51.fipad";
 NSString *const killSwitchPath = @"/var/mobile/fipad.disable";
 
 static BOOL isEnabled;
-static BOOL spoofPadIdiomDuringSwitcherLoad;
+// static BOOL spoofPadIdiomDuringSwitcherLoad; // 已注释，未使用
 static double cardScale;
 static double cardScaleLandscape;
 static double cornerRadius;
@@ -292,7 +292,6 @@ static uint16_t forcePadIdiom = 0;
 - (void)viewDidLoad {
     %orig;
     if (TweakActive()) {
-        // 使用 id 强制转换，避免编译错误
         [(id)self performSelector:@selector(addKillAllButton) withObject:nil afterDelay:0.1];
     }
 }
