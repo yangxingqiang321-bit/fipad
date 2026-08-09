@@ -1,1 +1,1 @@
-# fipad
+[🔗 fipad](https://github.com/yangxingqiang321-bit/fipad/releases/latest)
