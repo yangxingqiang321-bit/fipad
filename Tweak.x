@@ -87,7 +87,8 @@ static void killAllAppsSafe(void) {
     if (!items) return;
 
     Class mediaController = NSClassFromString(@"SBMediaController");
-    id nowPlayingApp = [[mediaController sharedInstance] valueForKey:@"nowPlayingApplication"];
+    id mediaInstance = [mediaController performSelector:@selector(sharedInstance)];
+    id nowPlayingApp = [mediaInstance valueForKey:@"nowPlayingApplication"];
     NSString *nowPlayingID = [nowPlayingApp valueForKey:@"bundleIdentifier"];
 
     for (id item in items) {
