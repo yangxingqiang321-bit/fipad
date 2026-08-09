@@ -1,6 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#import <AudioToolbox/AudioToolbox.h>  // 震动反馈
+#import <AudioToolbox/AudioToolbox.h>
 
 NSString *const domainString = @"com.schlub51.fipad";
 NSString *const killSwitchPath = @"/var/mobile/fipad.disable";
@@ -15,7 +15,6 @@ static double horizSpacingPort;
 static double vertSpacingLand;
 static double horizSpacingLand;
 
-// ===== 新增功能全局变量 =====
 static NSMutableSet *lockedBundleIDs = nil;
 static NSDate *lastGlobalSwipeTime = nil;
 static NSDate *lastCardSwipeTime = nil;
@@ -83,7 +82,6 @@ void ReloadPrefs(void) {
     horizSpacingLand = NormalizedSpacingPref(prefs, @"horizSpacingLand", 50.0, 11.6);
 }
 
-// ===== 辅助函数 =====
 static NSString* getBundleIDFromContainer(UIView *container) {
     id appLayout = [container valueForKey:@"_appLayout"];
     if (!appLayout) return nil;
@@ -130,7 +128,6 @@ static void updateLockIconForContainer(UIView *container, NSString *bundleID) {
     }
 }
 
-// ===== TrollPad 核心 =====
 static uint16_t forcePadIdiom = 0;
 
 %hook UIDevice
@@ -282,7 +279,7 @@ static uint16_t forcePadIdiom = 0;
 }
 %end
 
-// ===== 新增功能：一键关闭按钮 + 下滑清后台 + 下滑锁定 =====
+// ===== 新增功能 =====
 %hook SBFluidSwitcherViewController
 
 - (BOOL)isDevicePad {
@@ -295,14 +292,13 @@ static uint16_t forcePadIdiom = 0;
 - (void)viewDidLoad {
     %orig;
     if (TweakActive()) {
-        // 延迟添加按钮，确保视图加载完成
-        [self performSelector:@selector(addKillAllButton) withObject:nil afterDelay:0.1];
+        // 使用 id 强制转换，避免编译错误
+        [(id)self performSelector:@selector(addKillAllButton) withObject:nil afterDelay:0.1];
     }
 }
 
-// 添加底部一键关闭按钮
 - (void)addKillAllButton {
-    UIViewController *vc = (UIViewController *)self; // 强制转换，让编译器知道有 view
+    UIViewController *vc = (UIViewController *)self;
     UIView *view = vc.view;
     if ([view viewWithTag:8888]) return;
     
@@ -341,22 +337,20 @@ static uint16_t forcePadIdiom = 0;
     }
 }
 
-// 全局下滑手势（一键清后台）
 - (void)viewDidAppear:(BOOL)animated {
     %orig;
     if (TweakActive()) {
-        [self setupGlobalSwipeGesture];
+        [(id)self performSelector:@selector(setupGlobalSwipeGesture)];
     }
 }
 
 - (void)setupGlobalSwipeGesture {
     UIViewController *vc = (UIViewController *)self;
     UIView *view = vc.view;
-    // 检查是否已存在下滑手势
     for (UIGestureRecognizer *g in view.gestureRecognizers) {
         if ([g isKindOfClass:[UISwipeGestureRecognizer class]] &&
             ((UISwipeGestureRecognizer *)g).direction == UISwipeGestureRecognizerDirectionDown) {
-            return; // 已存在，避免重复添加
+            return;
         }
     }
     UISwipeGestureRecognizer *swipe = [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(handleGlobalSwipeDown:)];
@@ -371,7 +365,7 @@ static uint16_t forcePadIdiom = 0;
             NSTimeInterval interval = [now timeIntervalSinceDate:lastGlobalSwipeTime];
             if (interval < 0.5) {
                 lastGlobalSwipeTime = nil;
-                return; // 连续两次下滑，不触发清后台
+                return;
             }
         }
         lastGlobalSwipeTime = now;
@@ -382,7 +376,6 @@ static uint16_t forcePadIdiom = 0;
 
 - (void)viewWillDisappear:(BOOL)animated {
     %orig;
-    // 清理锁图标
     UIViewController *vc = (UIViewController *)self;
     for (UIView *subview in vc.view.subviews) {
         if (subview.tag == 9999) [subview removeFromSuperview];
@@ -391,15 +384,14 @@ static uint16_t forcePadIdiom = 0;
 
 %end
 
-// ===== 卡片下滑两次锁定 =====
+// ===== 卡片锁定 =====
 %hook SBFluidSwitcherItemContainer
 
 - (void)didMoveToWindow {
     %orig;
     if (!TweakActive()) return;
-    UIView *view = (UIView *)self; // 强制类型转换
+    UIView *view = (UIView *)self;
     if (!view.window) return;
-    // 检查是否已存在下滑手势
     for (UIGestureRecognizer *g in view.gestureRecognizers) {
         if ([g isKindOfClass:[UISwipeGestureRecognizer class]] &&
             ((UISwipeGestureRecognizer *)g).direction == UISwipeGestureRecognizerDirectionDown) {
